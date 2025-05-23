@@ -98,7 +98,7 @@
                 >
                   <img
                     class="max-w-[100%] md:h-[220px] bg-cover bg-center"
-                    :src="project.image"
+                     :src="getProjectImage(project.image)"
                     
                   ></img>
                   <div class="p-5">
@@ -273,6 +273,9 @@ const solarSystemContainer = ref(null);
 const isLoading3D = ref(true);
 const showPerformanceMonitor = ref(false);
 const qualityLevel = ref("medium"); // Niveau de qualité par défaut
+const getProjectImage = (image) => {
+  return import.meta.env.BASE_URL.replace(/\/$/, '') + '/' + image.replace(/^\//, '');
+};
 
 // Performance monitoring amélioré
 const performanceStats = reactive({
