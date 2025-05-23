@@ -264,6 +264,7 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import planetsData from "./data/Planets.js"; // Importer les données des planètes
+import { emissive, log } from "three/tsl";
 
 // ===== STATE SECTION =====
 const isNavOpen = ref(false);
@@ -325,6 +326,7 @@ const detectMobile = () => {
     ) || window.innerWidth < 768
   );
 };
+
 
 // ===== QUALITY SETTINGS =====
 const qualitySettings = {
@@ -496,15 +498,17 @@ const loadPlanetModel = async (planetData) => {
     };
     return defaultPlanet;
   }
+  console.log("fooooooot" + planetData.modelName);
+  const modelUrl = planetsData.modelUrl || (import.meta.env.BASE_URL + planetData.modelName);
 
   console.log(`🚀 Début du chargement du modèle pour ${planetData.name}`);
   console.log(`📁 URL du modèle: ${planetData.modelUrl}`);
 
   return new Promise((resolve) => {
-    const modelUrl = import.meta.env.BASE_URL + "sun.glb";
+
 
     gltfLoader.load(
-      planetData.modelUrl,modelUrl,
+      modelUrl,
       (gltf) => {
         console.log(
           `✅ Modèle chargé avec succès pour ${planetData.name}:`,
@@ -801,12 +805,14 @@ const setupPostProcessing = () => {
 
 const createSolarSystem = async () => {
   // Créer le soleil avec modelUrl
+
   const sunData = {
     id: "sun",
     name: "Soleil",
-    modelUrl: "/sun.glb",
+    modelName: "sun.glb",
     size: 2,
-  };
+  }
+  sunData.modelUrl = import.meta.env.BASE_URL + sunData.modelName;
 
   try {
     sun = await loadPlanetModel(sunData);
@@ -862,6 +868,8 @@ const createSolarSystem = async () => {
     const planetGroup = new THREE.Group();
 
     // Charger le modèle 3D ou créer une sphère
+    planetData.modelUrl = import.meta.env.BASE_URL + planetData.modelName;
+
     const planetMesh = await loadPlanetModel(planetData);
     planetMesh.userData = { planetId: planetData.id, planetData: planetData };
 

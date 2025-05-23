@@ -6,7 +6,7 @@ const planetsData = [
   {
     id: "about",
     name: "À propos",
-    modelUrl: "/mercure.glb",
+    modelName: "mercure.glb",
     description:
       "Mon nom est Enzo Martinez, j'ai 21 ans et je suis étudiant en tant que Master expert en développement full stack à Ynov Montpellier. Je vous présente mon porfolio inspiré du jeu Outer Wilds. Mon portfolio est une invitation à explorer mes compétences et mes projets dans un environnement ludique et immersif. J'ai essayé de rendre la chose la plus immersive possible et j'ai toujours des idées pour améliorer le concept.",
     size: 0.7,
@@ -26,7 +26,7 @@ const planetsData = [
   {
     id: "skills",
     name: "Compétences",
-    modelUrl: "/mars.glb",
+    modelName: "mars.glb",
     description:
       "Maîtrise des technologies front-end modernes avec une expertise particulière en JavaScript, TypeScript, Vue.js et React. Conception d'interfaces utilisateur intuitives et responsive avec un souci du détail et de l'expérience utilisateur. J'ai aussi participé à des projets académiques et personnels, mettant en avant mes compétences en développement web et backend.",
     size: 0.6,
@@ -60,7 +60,7 @@ const planetsData = [
   {
     id: "projects",
     name: "Projets", // Giant's Deep
-    modelUrl: "/jupiter.glb",
+    modelName: "jupiter.glb",
     description:
       "Découvrez une sélection de mes projets personnels et académiques, reflétant ma passion pour le développement web et ma capacité à créer des applications fonctionnelles et esthétiques.",
     size: 0.9,
@@ -95,7 +95,7 @@ const planetsData = [
   {
     id: "contact",
     name: "Contact",
-    modelUrl: "/earth3.glb",
+    modelName: "earth.glb",
     description:
       "Si vous souhaitez me contacter, n'hésitez pas à m'envoyer un message via mon mail : 'enzo.martinez34@ynov.com'. Je suis toujours ouvert à de nouvelles opportunités et collaborations.",
     size: 0.8,
@@ -110,8 +110,7 @@ const planetsData = [
   {
     id: "experience",
     name: "Expérience", // Desert Planet
-
-    modelUrl: "/neptune.glb",
+    modelName: "neptune.glb",
     description:
       "Mon parcours professionnel et académique, incluant mes stages, projets d'études et contributions qui ont façonné mon expertise en développement web.",
     size: 0.8,
