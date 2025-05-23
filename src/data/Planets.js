@@ -84,7 +84,7 @@ const planetsData = [
         title: "Application React 3d ",
         description:
           "Application 3D avec react-three-fiber et visulisation de données",
-        image: "images/React3D.png",
+        image: "images/ReactThree.png",
         technologies: ["JSX", "React", "Threejs"],
         github: "https://github.com/Inosthful/React3D",
         demo: "https://github.com/Inosthful/React3D",
