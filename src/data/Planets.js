@@ -75,7 +75,7 @@ const planetsData = [
       {
         title: "React Blog",
         description: "Blog react avec connexion API",
-        image: "./public/images/ReactDrapeau.png",
+        image: "images/ReactDrapeau.png",
         technologies: ["reactjs", "SASS", "axios", "json-server"],
         github: "https://github.com/Inosthful/ReactDrapeau",
         demo: "https://reactdb.netlify.app/",
@@ -84,7 +84,7 @@ const planetsData = [
         title: "Application React 3d ",
         description:
           "Application 3D avec react-three-fiber et visulisation de données",
-        image: "/public/images/React3D.png",
+        image: "images/React3D.png",
         technologies: ["JSX", "React", "Threejs"],
         github: "https://github.com/Inosthful/React3D",
         demo: "https://github.com/Inosthful/React3D",
