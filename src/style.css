@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variables CSS personnalisées pour les éléments non-Tailwind */
+:root {
+  --system-scale: 1;
+}
+
+/* Animations personnalisées */
+@keyframes animateStars {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(1000px);
+  }
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Styles pour les étoiles (difficiles à convertir en Tailwind) */
+.stars,
+.stars2,
+.stars3 {
+  background-image: radial-gradient(
+    white,
+    rgba(255, 255, 255, 0.2) 2px,
+    transparent 2px
+  );
+  background-size: 100px 100px;
+  background-repeat: repeat;
+}
+
+.stars {
+  background-size: 200px 200px;
+  animation: animateStars 100s linear infinite;
+}
+
+.stars2 {
+  background-size: 150px 150px;
+  animation: animateStars 150s linear infinite;
+}
+
+.stars3 {
+  background-size: 100px 100px;
+  animation: animateStars 200s linear infinite;
+}
