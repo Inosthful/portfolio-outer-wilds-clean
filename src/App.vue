@@ -501,8 +501,10 @@ const loadPlanetModel = async (planetData) => {
   console.log(`📁 URL du modèle: ${planetData.modelUrl}`);
 
   return new Promise((resolve) => {
+    const modelUrl = import.meta.env.BASE_URL + "sun.glb";
+
     gltfLoader.load(
-      planetData.modelUrl,
+      planetData.modelUrl,modelUrl,
       (gltf) => {
         console.log(
           `✅ Modèle chargé avec succès pour ${planetData.name}:`,
