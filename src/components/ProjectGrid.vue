@@ -31,7 +31,3 @@ const props = defineProps({
   planetName: { type: String, required: true },
 });
 </script>
-
-<style scoped>
-/* Styles spécifiques à la grille de projets si nécessaire */
-</style>
