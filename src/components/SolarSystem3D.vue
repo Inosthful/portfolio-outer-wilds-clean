@@ -610,109 +610,20 @@ const onPlanetClick = (event: MouseEvent) => {
   mouseVector.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouseVector.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouseVector, camera);
-  const intersects = raycaster.intersectObjects(planetMeshes);
+
+  // Filtrer les planètes pour exclure le soleil
+  const validPlanets = planetMeshes.filter((mesh) => {
+    const planetId = mesh.userData?.planetId;
+    return planetId && planetId !== "sun";
+  });
+
+  // Vérifier les intersections uniquement avec les planètes valides
+  const intersects = raycaster.intersectObjects(validPlanets);
+
   if (intersects.length > 0) {
     const clickedPlanet = intersects[0].object;
-    const planetId = clickedPlanet.userData.planetId;
-    if (planetId) {
-      // Animation de zoom
-      const targetPosition = new THREE.Vector3();
-      clickedPlanet.getWorldPosition(targetPosition);
-
-      // Calculer la position de la caméra pour le zoom
-      const zoomDistance = 8;
-      const cameraOffset = new THREE.Vector3(0, 3, zoomDistance);
-      const targetCameraPosition = targetPosition.clone().add(cameraOffset);
-
-      // Animation de la caméra
-      const startPosition = camera.position.clone();
-      const startTime = Date.now();
-      const duration = 1200; // Durée augmentée pour une animation plus fluide
-
-      const animateCamera = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-
-        // Fonction d'easing plus douce avec un effet de rebond
-        const easeProgress =
-          progress < 0.5
-            ? 4 * progress * progress * progress
-            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
-        // Interpolation de la position avec une courbe plus douce
-        camera.position.lerpVectors(
-          startPosition,
-          targetCameraPosition,
-          easeProgress
-        );
-
-        // Regarder la planète avec un léger décalage vers le haut
-        const lookAtPosition = targetPosition
-          .clone()
-          .add(new THREE.Vector3(0, 1, 0));
-        camera.lookAt(lookAtPosition);
-
-        if (progress < 1) {
-          requestAnimationFrame(animateCamera);
-        } else {
-          // Animation terminée
-          handlePlanetClick(clickedPlanet.userData);
-        }
-      };
-
-      // Désactiver les contrôles pendant l'animation
-      controls.enabled = false;
-      animateCamera();
-
-      // Réactiver les contrôles après l'animation
-      setTimeout(() => {
-        controls.enabled = true;
-      }, duration);
-    }
+    handlePlanetClick(clickedPlanet.userData);
   }
-};
-
-// Fonction pour revenir à la vue initiale
-const resetCamera = () => {
-  const startPosition = camera.position.clone();
-  const targetPosition = new THREE.Vector3(0, 5, 25); // Position initiale de la caméra
-  const startTime = Date.now();
-  const duration = 1200; // Même durée que l'animation de zoom
-
-  const animateCamera = () => {
-    const elapsed = Date.now() - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-
-    // Même fonction d'easing que l'animation de zoom
-    const easeProgress =
-      progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
-    // Interpolation de la position avec une courbe plus douce
-    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
-
-    // Regarder le centre de la scène avec un léger décalage vers le haut
-    const lookAtPosition = new THREE.Vector3(0, 2, 0);
-    camera.lookAt(lookAtPosition);
-
-    if (progress < 1) {
-      requestAnimationFrame(animateCamera);
-    } else {
-      // Animation terminée
-      controls.enabled = true;
-    }
-  };
-
-  // Désactiver les contrôles pendant l'animation
-  controls.enabled = false;
-  animateCamera();
-};
-
-// Fonction pour naviguer vers une planète
-const handlePlanetClick = (planet) => {
-  console.log("Clic sur la planète:", planet.planetId);
-  emit("navigate", planet.planetId);
 };
 
 // Fonction pour gérer le mouvement de la souris
@@ -720,12 +631,262 @@ const onMouseMove = (event: MouseEvent) => {
   mouseVector.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouseVector.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouseVector, camera);
-  const intersects = raycaster.intersectObjects(planetMeshes);
+
+  // Filtrer les planètes pour exclure le soleil
+  const validPlanets = planetMeshes.filter((mesh) => {
+    const planetId = mesh.userData?.planetId;
+    return planetId && planetId !== "sun";
+  });
+
+  const intersects = raycaster.intersectObjects(validPlanets);
   if (intersects.length > 0) {
     document.body.style.cursor = "pointer";
   } else {
     document.body.style.cursor = "auto";
   }
+};
+
+// Fonction pour calculer un point intermédiaire qui évite le soleil
+const calculateIntermediatePoint = (
+  startPos: THREE.Vector3,
+  targetPos: THREE.Vector3
+): THREE.Vector3 => {
+  const sunPosition = new THREE.Vector3(0, 0, 0);
+  const sunRadius = 2; // Rayon du soleil
+  const safetyMargin = 3; // Marge de sécurité pour éviter le soleil
+
+  // Calculer le vecteur de direction
+  const direction = targetPos.clone().sub(startPos).normalize();
+
+  // Calculer la distance au soleil
+  const toSun = sunPosition.clone().sub(startPos);
+  const distanceToSun = toSun.length();
+
+  // Si nous sommes déjà assez loin du soleil, pas besoin de point intermédiaire
+  if (distanceToSun > sunRadius + safetyMargin) {
+    return startPos.clone().add(direction.multiplyScalar(distanceToSun * 0.5));
+  }
+
+  // Calculer un point intermédiaire qui évite le soleil
+  const perpendicular = new THREE.Vector3(
+    -direction.z,
+    0,
+    direction.x
+  ).normalize();
+  const height = Math.max(5, distanceToSun * 0.5); // Hauteur minimale de 5 unités
+
+  return new THREE.Vector3(
+    startPos.x + direction.x * distanceToSun * 0.3 + perpendicular.x * height,
+    height,
+    startPos.z + direction.z * distanceToSun * 0.3 + perpendicular.z * height
+  );
+};
+
+// Fonction pour calculer la distance optimale de la caméra
+const calculateOptimalDistance = (
+  planetMesh: THREE.Mesh,
+  planetData: any
+): number => {
+  // Distance de base en fonction de la taille de la planète
+  const baseDistance = planetMesh.scale.x * 4;
+
+  // Ajustement en fonction de l'orbite
+  const orbitFactor = Math.min(planetData.orbitRadius / 10, 2);
+
+  // Distance minimale pour les planètes éloignées
+  const minDistance = 8;
+
+  // Calcul de la distance finale
+  return Math.max(baseDistance * orbitFactor, minDistance);
+};
+
+// Fonction pour créer l'animation de sélection
+const createSelectionAnimation = (planetMesh: THREE.Mesh) => {
+  // Créer un groupe pour les effets de sélection
+  const selectionGroup = new THREE.Group();
+  planetMesh.parent?.add(selectionGroup);
+
+  // Effet de pulsation
+  const pulseGeometry = new THREE.SphereGeometry(
+    planetMesh.scale.x * 1.2,
+    32,
+    32
+  );
+  const pulseMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.3,
+    side: THREE.BackSide,
+  });
+  const pulseMesh = new THREE.Mesh(pulseGeometry, pulseMaterial);
+  selectionGroup.add(pulseMesh);
+
+  // Effet de particules
+  const particleCount = 50;
+  const particleGeometry = new THREE.BufferGeometry();
+  const particlePositions = new Float32Array(particleCount * 3);
+  const particleSizes = new Float32Array(particleCount);
+
+  for (let i = 0; i < particleCount; i++) {
+    const i3 = i * 3;
+    const radius = planetMesh.scale.x * 1.5;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+
+    particlePositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+    particlePositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+    particlePositions[i3 + 2] = radius * Math.cos(phi);
+
+    particleSizes[i] = Math.random() * 0.2;
+  }
+
+  particleGeometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(particlePositions, 3)
+  );
+  particleGeometry.setAttribute(
+    "size",
+    new THREE.BufferAttribute(particleSizes, 1)
+  );
+
+  const particleMaterial = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 0.1,
+    transparent: true,
+    opacity: 0.6,
+    blending: THREE.AdditiveBlending,
+  });
+
+  const particles = new THREE.Points(particleGeometry, particleMaterial);
+  selectionGroup.add(particles);
+
+  // Animation de la caméra avec évitement du soleil
+  const startPosition = camera.position.clone();
+  const planetData = planetMesh.userData.planetData;
+  const optimalDistance = calculateOptimalDistance(planetMesh, planetData);
+
+  // Calculer la position cible avec la distance optimale
+  const targetOffset = new THREE.Vector3(
+    0,
+    optimalDistance * 0.3,
+    optimalDistance
+  );
+  const targetPosition = planetMesh.position.clone().add(targetOffset);
+
+  const intermediatePoint = calculateIntermediatePoint(
+    startPosition,
+    targetPosition
+  );
+  const startTime = Date.now();
+  const duration = 2000; // 2 secondes
+
+  const animateCamera = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    // Fonction d'easing
+    const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+    let currentPosition;
+    if (progress < 0.5) {
+      // Première moitié : vers le point intermédiaire
+      const firstHalfProgress = progress * 2;
+      const firstHalfEase = 1 - Math.pow(1 - firstHalfProgress, 3);
+      currentPosition = new THREE.Vector3().lerpVectors(
+        startPosition,
+        intermediatePoint,
+        firstHalfEase
+      );
+    } else {
+      // Deuxième moitié : vers la planète
+      const secondHalfProgress = (progress - 0.5) * 2;
+      const secondHalfEase = 1 - Math.pow(1 - secondHalfProgress, 3);
+      currentPosition = new THREE.Vector3().lerpVectors(
+        intermediatePoint,
+        targetPosition,
+        secondHalfEase
+      );
+    }
+
+    // Mettre à jour la position de la caméra
+    camera.position.copy(currentPosition);
+
+    // Calculer la direction vers la planète
+    const directionToPlanet = planetMesh.position
+      .clone()
+      .sub(currentPosition)
+      .normalize();
+
+    // Calculer la position cible de la caméra (légèrement au-dessus de la planète)
+    const lookAtPosition = planetMesh.position
+      .clone()
+      .add(new THREE.Vector3(0, optimalDistance * 0.1, 0));
+
+    // Créer une matrice de rotation qui aligne la caméra avec la direction vers la planète
+    const rotationMatrix = new THREE.Matrix4();
+    rotationMatrix.lookAt(
+      currentPosition,
+      lookAtPosition,
+      new THREE.Vector3(0, 1, 0)
+    );
+
+    // Appliquer la rotation à la caméra
+    camera.quaternion.setFromRotationMatrix(rotationMatrix);
+
+    if (progress < 1) {
+      requestAnimationFrame(animateCamera);
+    }
+  };
+
+  // Animation des effets
+  const animateEffects = () => {
+    const time = Date.now() * 0.001;
+
+    // Animation de pulsation
+    pulseMesh.scale.setScalar(1 + Math.sin(time * 2) * 0.1);
+    pulseMaterial.opacity = 0.3 + Math.sin(time * 3) * 0.1;
+
+    // Animation des particules
+    const positions = particleGeometry.attributes.position.array;
+    for (let i = 0; i < particleCount; i++) {
+      const i3 = i * 3;
+      const radius = planetMesh.scale.x * (1.5 + Math.sin(time + i) * 0.1);
+      const theta = time * 0.5 + i * 0.1;
+      const phi = Math.acos(2 * Math.random() - 1);
+
+      positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+      positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      positions[i3 + 2] = radius * Math.cos(phi);
+    }
+    particleGeometry.attributes.position.needsUpdate = true;
+
+    requestAnimationFrame(animateEffects);
+  };
+
+  // Démarrer les animations
+  animateCamera();
+  animateEffects();
+
+  // Nettoyer les effets après un certain temps
+  setTimeout(() => {
+    selectionGroup.removeFromParent();
+    selectionGroup.traverse((child) => {
+      if (child.geometry) child.geometry.dispose();
+      if (child.material) child.material.dispose();
+    });
+  }, 5000);
+};
+
+// Fonction pour naviguer vers une planète
+const handlePlanetClick = (planet) => {
+  // Trouver le mesh de la planète
+  const planetMesh = planetMeshes.find(
+    (mesh) => mesh.userData.planetId === planet.planetId
+  );
+  if (planetMesh) {
+    createSelectionAnimation(planetMesh);
+  }
+  emit("navigate", planet.planetId);
 };
 
 // Fonction pour créer une texture de soleil par défaut
@@ -1021,12 +1182,41 @@ watch(
   }
 );
 
+// Fonction pour animer le retour de la caméra
+const animateCameraReturn = () => {
+  const startPosition = camera.position.clone();
+  const targetPosition = new THREE.Vector3(0, 5, 25); // Position initiale de la caméra
+  const startTime = Date.now();
+  const duration = 1500; // 1.5 secondes
+
+  const animate = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    // Fonction d'easing
+    const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      // Réinitialiser les contrôles de la caméra
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  };
+
+  animate();
+};
+
 // Ajouter un watcher pour détecter la fermeture de la modal
 watch(
   () => props.activePlanet,
   (newValue, oldValue) => {
     if (!newValue && oldValue) {
-      resetCamera();
+      animateCameraReturn();
     }
   }
 );
