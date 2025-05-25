@@ -1,7 +1,5 @@
 // DATA SECTION
 
-import { color } from "three/tsl";
-
 const planetsData = [
   {
     id: "about",
@@ -39,27 +37,27 @@ const planetsData = [
       {
         title: "Maîtrise Front-end",
         description: "JavaScript, TypeScript, Vue.js, React",
-        image: "/placeholder.svg?height=200&width=300",
+        image: "/images/LogoFrontend.png",
         technologies: ["JavaScript", "TypeScript", "Vue.js", "React"],
       },
       {
         title: "Design & UI/UX",
         description:
           "Interfaces responsive, animations fluides, expérience utilisateur",
-        image: "/placeholder.svg?height=200&width=300",
+        image: "/images/LogoDesign.png",
         technologies: ["CSS/SASS", "Tailwind", "Animations", "Gsap"],
       },
       {
         title: "Compétences backend",
         description: "Node.js, MongoDB, API REST, gestion de bases de données",
-        image: "/placeholder.svg?height=200&width=300",
+        image: "/images/Logobackend.png",
         technologies: ["Node.js", "GraphQL", "MongoDB", "API REST"],
       },
     ],
   },
   {
     id: "projects",
-    name: "Projets", // Giant's Deep
+    name: "Projets",
     modelName: "jupiter.glb",
     description:
       "Découvrez une sélection de mes projets personnels et académiques, reflétant ma passion pour le développement web et ma capacité à créer des applications fonctionnelles et esthétiques.",
@@ -70,12 +68,11 @@ const planetsData = [
     color: 0x1e40af,
     atmosphereColor: 0xd2b48c,
     initialAngle: Math.PI * 1.7,
-
     projects: [
       {
         title: "React Blog",
         description: "Blog react avec connexion API",
-        image: "images/ReactDrapeau.png",
+        image: "/images/ReactDrapeau.png",
         technologies: ["reactjs", "SASS", "axios", "json-server"],
         github: "https://github.com/Inosthful/ReactDrapeau",
         demo: "https://reactdb.netlify.app/",
@@ -84,14 +81,13 @@ const planetsData = [
         title: "Application React 3d ",
         description:
           "Application 3D avec react-three-fiber et visulisation de données",
-        image: "images/ReactThree.png",
+        image: "/images/ReactThree.png",
         technologies: ["JSX", "React", "Threejs"],
         github: "https://github.com/Inosthful/React3D",
         demo: "https://github.com/Inosthful/React3D",
       },
     ],
   },
-
   {
     id: "contact",
     name: "Contact",
@@ -102,14 +98,13 @@ const planetsData = [
     orbitRadius: 14,
     orbitSpeed: 0.02,
     rotationSpeed: 0.002,
-
     color: 0x2a5caa,
     atmosphereColor: 0x2a5caa,
     initialAngle: Math.PI * 0.8,
   },
   {
     id: "experience",
-    name: "Expérience", // Desert Planet
+    name: "Expérience",
     modelName: "neptune.glb",
     description:
       "Mon parcours professionnel et académique, incluant mes stages, projets d'études et contributions qui ont façonné mon expertise en développement web.",
