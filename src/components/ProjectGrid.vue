@@ -23,7 +23,11 @@
 import ProjectCard from "./ProjectCard.vue";
 
 const props = defineProps({
-  projects: { type: Array, required: true },
+  projects: {
+    type: Array,
+    required: true,
+    default: () => [],
+  },
   planetName: { type: String, required: true },
 });
 </script>

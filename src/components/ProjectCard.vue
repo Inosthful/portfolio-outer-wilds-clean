@@ -93,6 +93,7 @@ const imageLoaded = ref(false);
 
 const getProjectImage = (image: string) => {
   return (
+    // @ts-ignore
     import.meta.env.BASE_URL.replace(/\/$/, "") + "/" + image.replace(/^\//, "")
   );
 };
