@@ -16,6 +16,10 @@
           <h1 class="text-3xl sm:text-4xl text-space-accent font-space">
             {{ getCurrentPlanet.name }}
           </h1>
+          <MiniPlanet
+            :modelName="getCurrentPlanet.modelName"
+            :size="getMiniPlanetSize(getCurrentPlanet.id)"
+          />
         </div>
         <div class="space-y-6 sm:space-y-8">
           <p
@@ -35,6 +39,7 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
+import MiniPlanet from "./MiniPlanet.vue";
 import ProjectGrid from "./ProjectGrid.vue";
 
 const props = defineProps({
@@ -42,11 +47,34 @@ const props = defineProps({
   planets: { type: Array, required: true },
 });
 
-const emit = defineEmits(["close"]);
+// Configuration des tailles pour chaque planète
+const planetSizes = {
+  about: 3, // Mercure
+  skills: 3, // Mars
+  projects: 3, // Jupiter (plus petit car plus grand modèle)
+  contact: 3, // Earth
+  experience: 3, // Neptune
+};
+
+const getMiniPlanetSize = (planetId: string): number => {
+  return planetSizes[planetId] || 0.5; // Taille par défaut si non spécifiée
+};
 
 const getCurrentPlanet = computed(() => {
-  return props.planets.find((planet) => planet.id === props.activePlanet) || {};
+  return (
+    props.planets.find((planet) => planet.id === props.activePlanet) || {
+      id: "",
+      name: "",
+      description: "",
+      modelName: "",
+      projects: [],
+    }
+  );
 });
+
+const emit = defineEmits<{
+  (e: "close");
+}>();
 
 const closeContent = () => {
   emit("close");

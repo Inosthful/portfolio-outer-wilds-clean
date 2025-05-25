@@ -700,181 +700,46 @@ const calculateOptimalDistance = (
   return Math.max(baseDistance * orbitFactor, minDistance);
 };
 
-// Fonction pour créer l'animation de sélection
-const createSelectionAnimation = (planetMesh: THREE.Mesh) => {
-  // Créer un groupe pour les effets de sélection
-  const selectionGroup = new THREE.Group();
-  planetMesh.parent?.add(selectionGroup);
+// Fonction pour créer l'animation de zoom direct vers une planète
+const createDirectZoomAnimation = (planetMesh: THREE.Mesh) => {
+  // Vérifier que ce n'est pas le soleil
+  if (planetMesh.userData.planetId === "sun") return;
 
-  // Effet de pulsation
-  const pulseGeometry = new THREE.SphereGeometry(
-    planetMesh.scale.x * 1.2,
-    32,
-    32
-  );
-  const pulseMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.3,
-    side: THREE.BackSide,
-  });
-  const pulseMesh = new THREE.Mesh(pulseGeometry, pulseMaterial);
-  selectionGroup.add(pulseMesh);
-
-  // Effet de particules
-  const particleCount = 50;
-  const particleGeometry = new THREE.BufferGeometry();
-  const particlePositions = new Float32Array(particleCount * 3);
-  const particleSizes = new Float32Array(particleCount);
-
-  for (let i = 0; i < particleCount; i++) {
-    const i3 = i * 3;
-    const radius = planetMesh.scale.x * 1.5;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-
-    particlePositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-    particlePositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-    particlePositions[i3 + 2] = radius * Math.cos(phi);
-
-    particleSizes[i] = Math.random() * 0.2;
-  }
-
-  particleGeometry.setAttribute(
-    "position",
-    new THREE.BufferAttribute(particlePositions, 3)
-  );
-  particleGeometry.setAttribute(
-    "size",
-    new THREE.BufferAttribute(particleSizes, 1)
-  );
-
-  const particleMaterial = new THREE.PointsMaterial({
-    color: 0xffffff,
-    size: 0.1,
-    transparent: true,
-    opacity: 0.6,
-    blending: THREE.AdditiveBlending,
-  });
-
-  const particles = new THREE.Points(particleGeometry, particleMaterial);
-  selectionGroup.add(particles);
-
-  // Animation de la caméra avec évitement du soleil
+  // Animation de la caméra
   const startPosition = camera.position.clone();
-  const planetData = planetMesh.userData.planetData;
-  const optimalDistance = calculateOptimalDistance(planetMesh, planetData);
-
-  // Calculer la position cible avec la distance optimale
-  const targetOffset = new THREE.Vector3(
-    0,
-    optimalDistance * 0.3,
-    optimalDistance
-  );
-  const targetPosition = planetMesh.position.clone().add(targetOffset);
-
-  const intermediatePoint = calculateIntermediatePoint(
-    startPosition,
-    targetPosition
-  );
+  const targetPosition = planetMesh.position
+    .clone()
+    .add(new THREE.Vector3(0, 2, 10)); // Ajustement de la position cible
   const startTime = Date.now();
-  const duration = 2000; // 2 secondes
+  const duration = 2000;
 
-  const animateCamera = () => {
+  const animate = () => {
     const elapsed = Date.now() - startTime;
     const progress = Math.min(elapsed / duration, 1);
-
-    // Fonction d'easing
     const easeProgress = 1 - Math.pow(1 - progress, 3);
 
-    let currentPosition;
-    if (progress < 0.5) {
-      // Première moitié : vers le point intermédiaire
-      const firstHalfProgress = progress * 2;
-      const firstHalfEase = 1 - Math.pow(1 - firstHalfProgress, 3);
-      currentPosition = new THREE.Vector3().lerpVectors(
-        startPosition,
-        intermediatePoint,
-        firstHalfEase
-      );
-    } else {
-      // Deuxième moitié : vers la planète
-      const secondHalfProgress = (progress - 0.5) * 2;
-      const secondHalfEase = 1 - Math.pow(1 - secondHalfProgress, 3);
-      currentPosition = new THREE.Vector3().lerpVectors(
-        intermediatePoint,
-        targetPosition,
-        secondHalfEase
+    // Déplacement direct vers la planète
+    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+    camera.lookAt(planetMesh.position);
+
+    // Log pour déboguer les positions à des intervalles clés
+    if (progress === 0 || progress === 0.5 || progress === 1) {
+      console.log("Progress:", progress);
+      console.log("Camera Position:", camera.position);
+      console.log("Target Position:", targetPosition);
+      console.log("Planet Position:", planetMesh.position);
+      console.log(
+        "Delta Position:",
+        camera.position.clone().sub(planetMesh.position)
       );
     }
-
-    // Mettre à jour la position de la caméra
-    camera.position.copy(currentPosition);
-
-    // Calculer la direction vers la planète
-    const directionToPlanet = planetMesh.position
-      .clone()
-      .sub(currentPosition)
-      .normalize();
-
-    // Calculer la position cible de la caméra (légèrement au-dessus de la planète)
-    const lookAtPosition = planetMesh.position
-      .clone()
-      .add(new THREE.Vector3(0, optimalDistance * 0.1, 0));
-
-    // Créer une matrice de rotation qui aligne la caméra avec la direction vers la planète
-    const rotationMatrix = new THREE.Matrix4();
-    rotationMatrix.lookAt(
-      currentPosition,
-      lookAtPosition,
-      new THREE.Vector3(0, 1, 0)
-    );
-
-    // Appliquer la rotation à la caméra
-    camera.quaternion.setFromRotationMatrix(rotationMatrix);
 
     if (progress < 1) {
-      requestAnimationFrame(animateCamera);
+      requestAnimationFrame(animate);
     }
   };
 
-  // Animation des effets
-  const animateEffects = () => {
-    const time = Date.now() * 0.001;
-
-    // Animation de pulsation
-    pulseMesh.scale.setScalar(1 + Math.sin(time * 2) * 0.1);
-    pulseMaterial.opacity = 0.3 + Math.sin(time * 3) * 0.1;
-
-    // Animation des particules
-    const positions = particleGeometry.attributes.position.array;
-    for (let i = 0; i < particleCount; i++) {
-      const i3 = i * 3;
-      const radius = planetMesh.scale.x * (1.5 + Math.sin(time + i) * 0.1);
-      const theta = time * 0.5 + i * 0.1;
-      const phi = Math.acos(2 * Math.random() - 1);
-
-      positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-      positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-      positions[i3 + 2] = radius * Math.cos(phi);
-    }
-    particleGeometry.attributes.position.needsUpdate = true;
-
-    requestAnimationFrame(animateEffects);
-  };
-
-  // Démarrer les animations
-  animateCamera();
-  animateEffects();
-
-  // Nettoyer les effets après un certain temps
-  setTimeout(() => {
-    selectionGroup.removeFromParent();
-    selectionGroup.traverse((child) => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
-    });
-  }, 5000);
+  animate();
 };
 
 // Fonction pour naviguer vers une planète
@@ -884,7 +749,7 @@ const handlePlanetClick = (planet) => {
     (mesh) => mesh.userData.planetId === planet.planetId
   );
   if (planetMesh) {
-    createSelectionAnimation(planetMesh);
+    createDirectZoomAnimation(planetMesh);
   }
   emit("navigate", planet.planetId);
 };
