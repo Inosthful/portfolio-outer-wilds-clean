@@ -13,9 +13,10 @@ import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPa
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import planetsData from "../data/Planets.js";
 
-
 const getProjectImage = (image) => {
-  return import.meta.env.BASE_URL.replace(/\/$/, '') + '/' + image.replace(/^\//, '');
+  return (
+    import.meta.env.BASE_URL.replace(/\/$/, "") + "/" + image.replace(/^\//, "")
+  );
 };
 const props = defineProps({
   planets: {
@@ -614,9 +615,104 @@ const onPlanetClick = (event: MouseEvent) => {
     const clickedPlanet = intersects[0].object;
     const planetId = clickedPlanet.userData.planetId;
     if (planetId) {
-      handlePlanetClick(clickedPlanet.userData);
+      // Animation de zoom
+      const targetPosition = new THREE.Vector3();
+      clickedPlanet.getWorldPosition(targetPosition);
+
+      // Calculer la position de la caméra pour le zoom
+      const zoomDistance = 8;
+      const cameraOffset = new THREE.Vector3(0, 3, zoomDistance);
+      const targetCameraPosition = targetPosition.clone().add(cameraOffset);
+
+      // Animation de la caméra
+      const startPosition = camera.position.clone();
+      const startTime = Date.now();
+      const duration = 1200; // Durée augmentée pour une animation plus fluide
+
+      const animateCamera = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Fonction d'easing plus douce avec un effet de rebond
+        const easeProgress =
+          progress < 0.5
+            ? 4 * progress * progress * progress
+            : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+        // Interpolation de la position avec une courbe plus douce
+        camera.position.lerpVectors(
+          startPosition,
+          targetCameraPosition,
+          easeProgress
+        );
+
+        // Regarder la planète avec un léger décalage vers le haut
+        const lookAtPosition = targetPosition
+          .clone()
+          .add(new THREE.Vector3(0, 1, 0));
+        camera.lookAt(lookAtPosition);
+
+        if (progress < 1) {
+          requestAnimationFrame(animateCamera);
+        } else {
+          // Animation terminée
+          handlePlanetClick(clickedPlanet.userData);
+        }
+      };
+
+      // Désactiver les contrôles pendant l'animation
+      controls.enabled = false;
+      animateCamera();
+
+      // Réactiver les contrôles après l'animation
+      setTimeout(() => {
+        controls.enabled = true;
+      }, duration);
     }
   }
+};
+
+// Fonction pour revenir à la vue initiale
+const resetCamera = () => {
+  const startPosition = camera.position.clone();
+  const targetPosition = new THREE.Vector3(0, 5, 25); // Position initiale de la caméra
+  const startTime = Date.now();
+  const duration = 1200; // Même durée que l'animation de zoom
+
+  const animateCamera = () => {
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    // Même fonction d'easing que l'animation de zoom
+    const easeProgress =
+      progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+    // Interpolation de la position avec une courbe plus douce
+    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+
+    // Regarder le centre de la scène avec un léger décalage vers le haut
+    const lookAtPosition = new THREE.Vector3(0, 2, 0);
+    camera.lookAt(lookAtPosition);
+
+    if (progress < 1) {
+      requestAnimationFrame(animateCamera);
+    } else {
+      // Animation terminée
+      controls.enabled = true;
+    }
+  };
+
+  // Désactiver les contrôles pendant l'animation
+  controls.enabled = false;
+  animateCamera();
+};
+
+// Fonction pour naviguer vers une planète
+const handlePlanetClick = (planet) => {
+  console.log("Clic sur la planète:", planet.planetId);
+  emit("navigate", planet.planetId);
 };
 
 // Fonction pour gérer le mouvement de la souris
@@ -630,12 +726,6 @@ const onMouseMove = (event: MouseEvent) => {
   } else {
     document.body.style.cursor = "auto";
   }
-};
-
-// Fonction pour naviguer vers une planète
-const handlePlanetClick = (planet) => {
-  console.log("Clic sur la planète:", planet.planetId);
-  emit("navigate", planet.planetId);
 };
 
 // Fonction pour créer une texture de soleil par défaut
@@ -723,7 +813,8 @@ const loadPlanetModel = async (planetData: any) => {
     );
     return createDefaultPlanet(planetData);
   }
-const modelUrl = planetsData.modelUrl || (import.meta.env.BASE_URL + planetData.modelName);
+  const modelUrl =
+    planetsData.modelUrl || import.meta.env.BASE_URL + planetData.modelName;
   console.log(`🚀 Début du chargement du modèle pour ${planetData.name}`);
   console.log(`📁 URL du modèle: ${modelUrl}`);
   return new Promise<THREE.Mesh>((resolve) => {
@@ -927,6 +1018,16 @@ watch(
   () => props.quality,
   (newQuality) => {
     setQualityLevel(newQuality);
+  }
+);
+
+// Ajouter un watcher pour détecter la fermeture de la modal
+watch(
+  () => props.activePlanet,
+  (newValue, oldValue) => {
+    if (!newValue && oldValue) {
+      resetCamera();
+    }
   }
 );
 
