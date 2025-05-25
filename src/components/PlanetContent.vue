@@ -2,7 +2,7 @@
   <transition name="slide-up">
     <main
       v-if="activePlanet"
-      class="fixed bottom-0 overflow-y-auto left-0 w-full max-h-[85vh] bg-space-dark/90 backdrop-blur-xl p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] rounded-t-[40px] z-20 border-t border-space-accent/20 shadow-[0_-4px_30px_rgba(0,0,0,0.3)]"
+      class="fixed bottom-0 overflow-y-auto left-0 w-full max-h-[85vh] bg-space-dark/90 backdrop-blur-xl p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] rounded-t-[40px] z-[101] border-t border-space-accent/20 shadow-[0_-4px_30px_rgba(0,0,0,0.3)]"
     >
       <button
         @click="closeContent"
