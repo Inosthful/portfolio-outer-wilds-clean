@@ -77,7 +77,7 @@ const currentStep = ref(0);
 
 const steps = [
   {
-    title: "Bienvenue dans mon Portfolio Spatial",
+    title: "Bienvenue dans mon Portfolio",
     description:
       "Explorez mon univers de développement à travers ce système solaire interactif. Chaque planète représente une compétence ou un projet.",
     position: "center",
