@@ -646,60 +646,6 @@ const onMouseMove = (event: MouseEvent) => {
   }
 };
 
-// Fonction pour calculer un point intermédiaire qui évite le soleil
-const calculateIntermediatePoint = (
-  startPos: THREE.Vector3,
-  targetPos: THREE.Vector3
-): THREE.Vector3 => {
-  const sunPosition = new THREE.Vector3(0, 0, 0);
-  const sunRadius = 2; // Rayon du soleil
-  const safetyMargin = 3; // Marge de sécurité pour éviter le soleil
-
-  // Calculer le vecteur de direction
-  const direction = targetPos.clone().sub(startPos).normalize();
-
-  // Calculer la distance au soleil
-  const toSun = sunPosition.clone().sub(startPos);
-  const distanceToSun = toSun.length();
-
-  // Si nous sommes déjà assez loin du soleil, pas besoin de point intermédiaire
-  if (distanceToSun > sunRadius + safetyMargin) {
-    return startPos.clone().add(direction.multiplyScalar(distanceToSun * 0.5));
-  }
-
-  // Calculer un point intermédiaire qui évite le soleil
-  const perpendicular = new THREE.Vector3(
-    -direction.z,
-    0,
-    direction.x
-  ).normalize();
-  const height = Math.max(5, distanceToSun * 0.5); // Hauteur minimale de 5 unités
-
-  return new THREE.Vector3(
-    startPos.x + direction.x * distanceToSun * 0.3 + perpendicular.x * height,
-    height,
-    startPos.z + direction.z * distanceToSun * 0.3 + perpendicular.z * height
-  );
-};
-
-// Fonction pour calculer la distance optimale de la caméra
-const calculateOptimalDistance = (
-  planetMesh: THREE.Mesh,
-  planetData: any
-): number => {
-  // Distance de base en fonction de la taille de la planète
-  const baseDistance = planetMesh.scale.x * 4;
-
-  // Ajustement en fonction de l'orbite
-  const orbitFactor = Math.min(planetData.orbitRadius / 10, 2);
-
-  // Distance minimale pour les planètes éloignées
-  const minDistance = 8;
-
-  // Calcul de la distance finale
-  return Math.max(baseDistance * orbitFactor, minDistance);
-};
-
 // Fonction pour créer l'animation de zoom direct vers une planète
 const createDirectZoomAnimation = (planetMesh: THREE.Mesh) => {
   // Vérifier que ce n'est pas le soleil
