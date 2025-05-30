@@ -1,14 +1,14 @@
 <template>
   <div
     v-if="showPerformanceMonitor"
-    class="fixed top-5 left-5 bg-black/90 text-green-400 p-4 rounded-lg text-sm font-mono z-[100] border border-green-500/30 backdrop-blur-sm"
+    class="fixed top-5 left-5 bg-black/90 text-green-400 p-3 sm:p-4 rounded-lg text-sm font-mono z-[100] border border-green-500/30 backdrop-blur-sm"
   >
     <div class="text-green-300 font-bold mb-2">⚡ Performance Monitor</div>
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-2 sm:gap-4 gap-2">
       <div>
-        <div class="text-gray-400">FPS:</div>
+        <div class="text-gray-400 text-xs sm:text-sm">FPS:</div>
         <div
-          class="text-xl font-bold"
+          class="text-md sm:text-xl font-bold"
           :class="
             performanceStats.fps >= 60
               ? 'text-green-400'
@@ -21,29 +21,29 @@
         </div>
       </div>
       <div>
-        <div class="text-gray-400">Frame Time:</div>
-        <div class="text-lg">{{ performanceStats.frameTime }}ms</div>
+        <div class="text-gray-400 text-xs sm:text-sm">Frame Time:</div>
+        <div class="text-sm sm:text-lg">{{ performanceStats.frameTime }}ms</div>
       </div>
       <div>
-        <div class="text-gray-400">Triangles:</div>
-        <div class="text-lg">
+        <div class="text-gray-400 text-xs sm:text-sm">Triangles:</div>
+        <div class="text-sm sm:text-lg">
           {{ performanceStats.triangles.toLocaleString() }}
         </div>
       </div>
       <div>
-        <div class="text-gray-400">Draw Calls:</div>
-        <div class="text-lg">{{ performanceStats.drawCalls }}</div>
+        <div class="text-gray-400 text-xs sm:text-sm">Draw Calls:</div>
+        <div class="text-sm sm:text-lg">{{ performanceStats.drawCalls }}</div>
       </div>
       <div>
-        <div class="text-gray-400">Memory:</div>
-        <div class="text-lg">{{ performanceStats.memory }}MB</div>
+        <div class="text-gray-400 text-xs sm:text-sm">Memory:</div>
+        <div class="text-sm sm:text-lg">{{ performanceStats.memory }}MB</div>
       </div>
       <div>
-        <div class="text-gray-400">Device:</div>
+        <div class="text-gray-400 text-xs sm:text-sm">Device:</div>
         <div class="text-xs">{{ isMobile ? "Mobile" : "Desktop" }}</div>
       </div>
     </div>
-    <div class="mt-3 border-t border-gray-700 pt-2">
+    <div class="mt-3 border-t border-gray-700 pt-1 sm:pt-2">
       <div class="text-gray-400 mb-1">Qualité:</div>
       <div class="flex gap-2">
         <button
