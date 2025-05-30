@@ -45,7 +45,7 @@
         </div>
         <div class="flex gap-3">
           <button
-            v-if="currentStep > 0"
+            v-if="currentStep >= 0"
             @click="previousStep"
             class="px-4 py-2 text-sm text-space-light/60 hover:text-space-light transition-colors"
           >
@@ -132,6 +132,7 @@ const overlayStyle = computed(() => {
 const tooltipStyle = computed(() => {
   const step = steps[currentStep.value];
   const position = step.position;
+  // @ts-ignore
   const baseStyle = step.customStyle || {};
 
   switch (position) {
