@@ -178,11 +178,6 @@ onMounted(() => {
   if (tutorialCompleted) {
     showTutorial.value = false;
   }
-
-  // Afficher le moniteur de performance après un court délai
-  setTimeout(() => {
-    showPerformanceMonitor.value = true;
-  }, 1000);
 });
 
 onUnmounted(() => {
