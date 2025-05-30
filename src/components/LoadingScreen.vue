@@ -19,7 +19,7 @@
       </div>
     </div>
 
-    <div class="text-space-accent text-2xl font-space mb-4">
+    <div class="text-space-accent text-2xl text-center font-space mb-4">
       Chargement du système solaire...
     </div>
 
