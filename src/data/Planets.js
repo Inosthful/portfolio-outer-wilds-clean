@@ -86,6 +86,15 @@ const planetsData = [
         github: "https://github.com/Inosthful/React3D",
         demo: "https://github.com/Inosthful/React3D",
       },
+      {
+        title: "World Champions Lol ",
+        description:
+          "Site répertoriant les différents champions du monde de League of Legends après stats et informations",
+        image: "/images/ReactWorlds.jpg",
+        technologies: ["TSX", "React", "Tailwindcss"],
+        github: "https://github.com/Inosthful/lol-worlds-champions",
+        demo: "https://inosthful.github.io/lol-worlds-champions/",
+      },
     ],
   },
   {
