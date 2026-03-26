@@ -2,35 +2,42 @@
   <transition name="slide-up">
     <main
       v-if="activePlanet"
-      class="fixed bottom-0 overflow-y-auto left-0 w-full max-h-[85vh] bg-space-dark/90 backdrop-blur-xl p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] rounded-t-[40px] z-[101] border-t border-space-accent/20 shadow-[0_-4px_30px_rgba(0,0,0,0.3)]"
+      class="fixed bottom-0 left-0 w-full max-h-[85vh] overflow-y-auto bg-space-dark/90 backdrop-blur-xl p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] rounded-t-[40px] z-[101] border-t border-space-accent/20 shadow-[0_-4px_30px_rgba(0,0,0,0.3)]"
     >
       <button
-        @click="closeContent"
+        @click="$emit('close')"
+        aria-label="Fermer"
         class="absolute top-4 right-4 sm:top-5 sm:right-5 w-10 h-10 bg-space-accent/10 border border-space-accent/20 rounded-full text-space-light text-2xl leading-none cursor-pointer transition-all duration-300 z-[85] flex items-center justify-center hover:bg-space-accent/20 hover:scale-110 hover:border-space-accent/40"
       >
         ×
       </button>
-      <section :key="activePlanet" class="max-w-6xl mx-auto">
-        <div class="flex items-center gap-4 mb-4 sm:mb-6">
-          <div class="w-3 h-3 rounded-full bg-space-accent animate-pulse"></div>
-          <h1 class="text-3xl sm:text-4xl text-space-accent font-space">
-            {{ getCurrentPlanet.name }}
-          </h1>
-          <MiniPlanet
-            :modelName="getCurrentPlanet.modelName"
-            :size="getMiniPlanetSize(getCurrentPlanet.id)"
-          />
+
+      <section :key="activePlanet" class="max-w-5xl mx-auto">
+        <!-- En-tête -->
+        <div class="flex items-center gap-4 mb-6">
+          <div class="w-3 h-3 rounded-full bg-space-accent animate-pulse shrink-0"></div>
+          <div>
+            <h1 class="text-3xl sm:text-4xl text-space-accent font-space">{{ planet.name }}</h1>
+            <span class="text-xs text-space-light/50 font-space uppercase tracking-widest">{{ planet.info.type }}</span>
+          </div>
         </div>
-        <div class="space-y-6 sm:space-y-8">
-          <p
-            class="text-base sm:text-lg leading-relaxed text-space-light/90 max-w-3xl"
-          >
-            {{ getCurrentPlanet.description }}
-          </p>
-          <ProjectGrid
-            :projects="getCurrentPlanet.projects"
-            :planetName="getCurrentPlanet.name"
-          />
+
+        <!-- Grille de données -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+          <DataCard label="Diamètre" :value="planet.info.diametre" icon="⬤" />
+          <DataCard label="Masse" :value="planet.info.masseRelative" icon="⚖" />
+          <DataCard label="Distance au Soleil" :value="planet.info.distanceSoleil" icon="☀" />
+          <DataCard label="Période orbitale" :value="planet.info.periodeOrbitale" icon="↻" />
+          <DataCard label="Rotation" :value="planet.info.periodeRotation" icon="⟳" />
+          <DataCard label="Température" :value="planet.info.temperatureMoyenne" icon="🌡" />
+          <DataCard label="Lunes" :value="planet.info.nombreLunes.toString()" icon="◑" />
+          <DataCard label="Atmosphère" :value="planet.info.atmosphere" icon="~" />
+        </div>
+
+        <!-- Fait marquant -->
+        <div class="bg-space-accent/5 border border-space-accent/15 rounded-2xl p-5">
+          <p class="text-xs font-space uppercase tracking-widest text-space-accent/60 mb-2">Fait marquant</p>
+          <p class="text-space-light/90 leading-relaxed text-sm sm:text-base">{{ planet.info.faitMarquant }}</p>
         </div>
       </section>
     </main>
@@ -39,83 +46,62 @@
 
 <script setup lang="ts">
 import { computed } from "vue";
-import MiniPlanet from "./MiniPlanet.vue";
-import ProjectGrid from "./ProjectGrid.vue";
+import DataCard from "./DataCard.vue";
+import { type PlanetData } from "../data/PlanetsData.js";
 
-const props = defineProps({
-  activePlanet: { type: String, required: true },
-  planets: { type: Array, required: true },
-});
-
-// Configuration des tailles pour chaque planète
-const planetSizes = {
-  about: 3, // Mercure
-  skills: 3, // Mars
-  projects: 3, // Jupiter (plus petit car plus grand modèle)
-  contact: 3, // Earth
-  experience: 3, // Neptune
-};
-
-const getMiniPlanetSize = (planetId: string): number => {
-  return planetSizes[planetId] || 0.5; // Taille par défaut si non spécifiée
-};
-
-const getCurrentPlanet = computed(() => {
-  return (
-    props.planets.find((planet) => planet.id === props.activePlanet) || {
-      id: "",
-      name: "",
-      description: "",
-      modelName: "",
-      projects: [],
-    }
-  );
-});
-
-const emit = defineEmits<{
-  (e: "close");
+const props = defineProps<{
+  activePlanet: string;
+  planets: PlanetData[];
 }>();
 
-const closeContent = () => {
-  emit("close");
-};
+defineEmits<{ (e: "close"): void }>();
+
+const planet = computed(
+  () =>
+    props.planets.find((p) => p.id === props.activePlanet) ?? {
+      id: "",
+      name: "",
+      modelName: null,
+      size: 0,
+      orbitRadius: 0,
+      orbitSpeed: 0,
+      rotationSpeed: 0,
+      atmosphereColor: 0,
+      initialAngle: 0,
+      info: {
+        type: "",
+        diametre: "",
+        masseRelative: "",
+        distanceSoleil: "",
+        periodeOrbitale: "",
+        periodeRotation: "",
+        temperatureMoyenne: "",
+        nombreLunes: 0,
+        atmosphere: "",
+        faitMarquant: "",
+      },
+    } as PlanetData
+);
 </script>
+
 
 <style scoped>
 .slide-up-enter-active,
 .slide-up-leave-active {
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 .slide-up-enter-from,
 .slide-up-leave-to {
   transform: translateY(100%);
   opacity: 0;
 }
 
-/* Scrollbar personnalisée */
-::-webkit-scrollbar {
-  width: 8px;
-}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.04); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
 
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* Ajustements pour iOS */
 @supports (padding: max(0px)) {
-  main {
-    padding-bottom: max(2rem, env(safe-area-inset-bottom) + 2rem);
-  }
+  main { padding-bottom: max(2rem, env(safe-area-inset-bottom) + 2rem); }
 }
 </style>

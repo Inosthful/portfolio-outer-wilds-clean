@@ -7,9 +7,9 @@
       :activePlanet="activePlanet"
       :quality="qualityLevel"
       @navigate="navigateTo"
-      @loading-progress="updateLoadingProgress"
-      @loading-complete="loadingComplete"
-      @update-performance-stats="updatePerformanceStats"
+      @loading-progress="(p) => (loadingProgress = p)"
+      @loading-complete="isLoading = false"
+      @update-performance-stats="performanceStats = $event"
     />
     <NavMenu
       :isNavOpen="isNavOpen"
@@ -20,32 +20,22 @@
     <PlanetContent
       :activePlanet="activePlanet"
       :planets="planets"
-      @close="closeContent"
-      @open-project-details="openProjectDetails"
-      @open-skill-details="openSkillDetails"
+      @close="activePlanet = ''"
     />
     <PerformanceMonitor
       :showPerformanceMonitor="showPerformanceMonitor"
       :performanceStats="performanceStats"
       :isMobile="isMobile"
       :qualityLevel="qualityLevel"
-      @setQualityLevel="setQualityLevel"
-      @close="closePerformanceMonitor"
+      @setQualityLevel="qualityLevel = $event"
+      @close="showPerformanceMonitor = false"
     />
-    <ProjectModals
-      :isProjectDetailsOpen="isProjectDetailsOpen"
-      :isSkillDetailsOpen="isSkillDetailsOpen"
-      :selectedProject="selectedProject"
-      :selectedSkill="selectedSkill"
-      @close-project-details="closeProjectDetails"
-      @close-skill-details="closeSkillDetails"
-    />
-    <Tutorial :isActive="showTutorial" @complete="handleTutorialComplete" />
+    <Tutorial :isActive="showTutorial" @complete="completeTutorial" />
     <FloatingButtons
       :showTutorial="showTutorial"
       :showPerformanceMonitor="showPerformanceMonitor"
-      @open-tutorial="handleOpenTutorial"
-      @open-performance-monitor="handleOpenPerformanceMonitor"
+      @open-tutorial="openTutorial"
+      @open-performance-monitor="showPerformanceMonitor = true"
     />
   </div>
 </template>
@@ -57,136 +47,58 @@ import LoadingScreen from "./components/LoadingScreen.vue";
 import NavMenu from "./components/NavMenu.vue";
 import PerformanceMonitor from "./components/PerformanceMonitor.vue";
 import PlanetContent from "./components/PlanetContent.vue";
-import ProjectModals from "./components/ProjectModals.vue";
 import SolarSystem3D from "./components/SolarSystem3D.vue";
 import StarField from "./components/StarField.vue";
 import Tutorial from "./components/Tutorial.vue";
-import planetsData from "./data/Planets.js";
+import planetsData, { type PlanetData } from "./data/PlanetsData.js";
 
-const isNavOpen = ref(false);
+interface PerformanceStats {
+  fps: number;
+  frameTime: number;
+  triangles: number;
+  drawCalls: number;
+  memory: number;
+}
+
 const activePlanet = ref("");
+const isNavOpen = ref(false);
 const showPerformanceMonitor = ref(false);
-const isMobile = ref(false);
+const showTutorial = ref(true);
 const qualityLevel = ref("high");
 const isLoading = ref(true);
 const loadingProgress = ref(0);
+const isMobile = ref(false);
+const planets = ref<PlanetData[]>(planetsData);
+const performanceStats = ref<PerformanceStats>({ fps: 0, frameTime: 0, triangles: 0, drawCalls: 0, memory: 0 });
 
-// État des modales
-const isProjectDetailsOpen = ref(false);
-const isSkillDetailsOpen = ref(false);
-const selectedProject = ref(null);
-const selectedSkill = ref(null);
-
-const performanceStats = ref({
-  fps: 0,
-  frameTime: 0,
-  triangles: 0,
-  drawCalls: 0,
-  memory: 0,
-});
-
-const planets = ref(planetsData);
-
-const showTutorial = ref(true);
-
-const navigateTo = (planetId: string) => {
-  console.log("Navigation vers la planète:", planetId);
+const navigateTo = (planetId: string): void => {
   activePlanet.value = planetId;
   isNavOpen.value = false;
 };
 
-const closeContent = () => {
-  console.log("Fermeture du contenu");
-  activePlanet.value = "";
-};
-
-const setQualityLevel = (level: string) => {
-  qualityLevel.value = level;
-};
-
-const closePerformanceMonitor = () => {
-  showPerformanceMonitor.value = false;
-};
-
-const updateLoadingProgress = (progress: number) => {
-  loadingProgress.value = progress;
-};
-
-const loadingComplete = () => {
-  isLoading.value = false;
-};
-
-// Gestion des modales
-const openProjectDetails = (project: any) => {
-  console.log("Ouverture des détails du projet:", project);
-  selectedProject.value = project;
-  isProjectDetailsOpen.value = true;
-};
-
-const closeProjectDetails = () => {
-  console.log("Fermeture des détails du projet");
-  isProjectDetailsOpen.value = false;
-  selectedProject.value = null;
-};
-
-const openSkillDetails = (skill: any) => {
-  console.log("Ouverture des détails de la compétence:", skill);
-  selectedSkill.value = skill;
-  isSkillDetailsOpen.value = true;
-};
-
-const closeSkillDetails = () => {
-  console.log("Fermeture des détails de la compétence");
-  isSkillDetailsOpen.value = false;
-  selectedSkill.value = null;
-};
-
-const handleTutorialComplete = () => {
+const completeTutorial = (): void => {
   showTutorial.value = false;
   localStorage.setItem("tutorialCompleted", "true");
 };
 
-const handleOpenTutorial = () => {
+const openTutorial = (): void => {
   showTutorial.value = true;
   localStorage.removeItem("tutorialCompleted");
 };
 
-const handleOpenPerformanceMonitor = () => {
-  showPerformanceMonitor.value = true;
-};
-
-const updatePerformanceStats = (stats: any) => {
-  performanceStats.value = { ...stats };
-};
-
-// Détection du mobile
-const detectMobile = () => {
-  return (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    ) || window.innerWidth < 768
-  );
+const onResize = (): void => {
+  isMobile.value =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768;
 };
 
 onMounted(() => {
-  isMobile.value = detectMobile();
-  window.addEventListener("resize", () => {
-    isMobile.value = detectMobile();
-  });
-
-  const tutorialCompleted = localStorage.getItem("tutorialCompleted");
-  if (tutorialCompleted) {
-    showTutorial.value = false;
-  }
+  onResize();
+  window.addEventListener("resize", onResize);
+  if (localStorage.getItem("tutorialCompleted")) showTutorial.value = false;
 });
 
 onUnmounted(() => {
-  window.removeEventListener("resize", () => {
-    isMobile.value = detectMobile();
-  });
+  window.removeEventListener("resize", onResize);
 });
 </script>
-
-<style>
-/* Styles globaux si nécessaire */
-</style>

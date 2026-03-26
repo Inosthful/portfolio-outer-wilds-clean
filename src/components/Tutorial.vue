@@ -45,7 +45,7 @@
         </div>
         <div class="flex gap-3">
           <button
-            v-if="currentStep >= 0"
+            v-if="currentStep > 0"
             @click="previousStep"
             class="px-4 py-2 text-sm text-space-light/60 hover:text-space-light transition-colors"
           >
@@ -77,39 +77,33 @@ const currentStep = ref(0);
 
 const steps = [
   {
-    title: "Bienvenue dans mon Portfolio",
+    title: "Bienvenue dans le Système Solaire",
     description:
-      "Explorez mon univers de développement à travers ce système solaire interactif. Chaque planète représente une compétence ou un projet.",
+      "Explorez les 8 planètes de notre système solaire en 3D. Tailles, distances et vitesses orbitales sont représentatives des données réelles.",
     position: "center",
   },
   {
     title: "Navigation",
     description:
-      "Utilisez votre souris pour faire pivoter la vue. Faites défiler pour zoomer et dézoomer. Cliquez sur une planète pour en savoir plus.",
+      "Cliquez et faites glisser pour faire pivoter la vue. Utilisez la molette pour zoomer. Cliquez sur une planète pour en savoir plus.",
     position: "center",
   },
   {
-    title: "Découvrez mes Projets",
+    title: "Données astronomiques",
     description:
-      "Chaque planète abrite des projets que j'ai réalisés. Cliquez sur une planète pour voir les détails et les technologies utilisées.",
+      "Chaque planète affiche ses données réelles : diamètre, masse, distance au Soleil, période orbitale, température et composition atmosphérique.",
     position: "center",
   },
   {
-    title: "Explorez mes Compétences",
+    title: "Échelle de représentation",
     description:
-      "Les planètes sont organisées par domaine de compétence. Plus vous vous rapprochez du soleil, plus les compétences sont fondamentales.",
+      "Les distances sont compressées (échelle racine carrée) pour rester visibles. Les vitesses orbitales respectent la loi de Kepler — Mercure est la plus rapide.",
     position: "center",
-  },
-  {
-    title: "Moniteur de Performance",
-    description:
-      "En haut à gauche, vous trouverez un moniteur de performance. Il vous permet d'ajuster la qualité visuelle selon votre appareil.",
-    position: "top-right",
   },
   {
     title: "Prêt à Explorer ?",
     description:
-      "Vous êtes maintenant prêt à explorer mon portfolio ! N'hésitez pas à interagir avec les planètes et à découvrir mes projets.",
+      "Cliquez sur n'importe quelle planète pour découvrir ses caractéristiques. Bonne exploration !",
     position: "center",
   },
 ];

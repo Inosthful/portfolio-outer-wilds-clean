@@ -11,111 +11,110 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { onMounted, onUnmounted, ref, watch } from "vue";
-import planetsData from "../data/Planets.js";
+import planetsData, { type PlanetData } from "../data/PlanetsData.js";
 
-const getProjectImage = (image) => {
-  return (
-    import.meta.env.BASE_URL.replace(/\/$/, "") + "/" + image.replace(/^\//, "")
-  );
-};
-const props = defineProps({
-  planets: {
-    type: Array,
-    required: true,
-  },
-  activePlanet: {
-    type: String,
-    default: "",
-  },
-  quality: {
-    type: String,
-    default: "high",
-  },
-});
+// ---------------------------------------------------------------------------
+// Props & Emits
+// ---------------------------------------------------------------------------
+const props = defineProps<{
+  planets: PlanetData[];
+  activePlanet: string;
+  quality: string;
+}>();
 
+const emit = defineEmits<{
+  (e: "navigate", planetId: string): void;
+  (e: "loading-progress", progress: number): void;
+  (e: "loading-complete"): void;
+  (e: "update-performance-stats", stats: PerformanceStats): void;
+}>();
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+interface PerformanceStats {
+  fps: number;
+  frameTime: number;
+  triangles: number;
+  drawCalls: number;
+  memory: number;
+}
+
+// ---------------------------------------------------------------------------
+// Refs & état
+// ---------------------------------------------------------------------------
 const solarSystemContainer = ref<HTMLElement | null>(null);
-let scene: THREE.Scene;
-let camera: THREE.PerspectiveCamera;
-let renderer: THREE.WebGLRenderer;
-let controls: OrbitControls;
-let composer: EffectComposer;
-let bloomPass: UnrealBloomPass;
-let sun: THREE.Mesh;
-let planetMeshes: THREE.Mesh[] = [];
-let planetGroups: THREE.Group[] = [];
-let animationId: number;
-let raycaster: THREE.Raycaster;
-let mouseVector: THREE.Vector2;
-let isUserInteracting = false;
-let isMobile = false;
-let gltfLoader: GLTFLoader;
-
-const showPerformanceMonitor = ref(false);
-const performanceStats = ref({
+const performanceStats = ref<PerformanceStats>({
   fps: 0,
   frameTime: 0,
   triangles: 0,
   drawCalls: 0,
   memory: 0,
 });
-const qualityLevel = ref("high");
+
+// ---------------------------------------------------------------------------
+// Variables Three.js (hors réactivité Vue)
+// ---------------------------------------------------------------------------
+let scene: THREE.Scene;
+let camera: THREE.PerspectiveCamera;
+let renderer: THREE.WebGLRenderer;
+let controls: OrbitControls;
+let composer: EffectComposer;
+let bloomPass: UnrealBloomPass;
+let sun: THREE.Object3D;
+let planetMeshes: THREE.Object3D[] = [];
+let planetGroups: THREE.Group[] = [];
+let atmosphereGroups: THREE.Group[] = [];
+let animationId: number;
+let raycaster: THREE.Raycaster;
+let mouseVector: THREE.Vector2;
+let gltfLoader: GLTFLoader;
+let isMobile = false;
+let mouseDownX = 0;
+let mouseDownY = 0;
 
 let frameCount = 0;
 let lastTime = performance.now();
 
-const emit = defineEmits([
-  "navigate",
-  "loading-progress",
-  "loading-complete",
-  "update-performance-stats",
-]);
+// ---------------------------------------------------------------------------
+// Utilitaires
+// ---------------------------------------------------------------------------
+const detectMobile = (): boolean =>
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  ) || window.innerWidth < 768;
 
-// Fonction pour détecter si l'appareil est mobile
-const detectMobile = () => {
-  return (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    ) || window.innerWidth < 768
-  );
-};
-
-// Fonction pour initialiser Three.js
-const initThreeJS = async () => {
+// ---------------------------------------------------------------------------
+// Initialisation Three.js
+// ---------------------------------------------------------------------------
+const initThreeJS = async (): Promise<void> => {
   isMobile = detectMobile();
   emit("loading-progress", 10);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
-  camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-  );
-  camera.position.set(0, 5, 25);
+  scene.background = new THREE.Color(0x020a1a);
+
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 600);
+  camera.position.set(0, 12, 55);
   emit("loading-progress", 20);
 
-  renderer = new THREE.WebGLRenderer({
-    antialias: !isMobile,
-    alpha: true,
-    powerPreference: "high-performance",
-  });
+  renderer = new THREE.WebGLRenderer({ antialias: !isMobile, alpha: true, powerPreference: "high-performance" });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.enabled = false;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.5;
   solarSystemContainer.value?.appendChild(renderer.domElement);
+
   emit("loading-progress", 30);
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
-  controls.minDistance = 5;
-  controls.maxDistance = 50;
+  controls.minDistance = 3;
+  controls.maxDistance = 90;
   controls.enablePan = false;
+
   gltfLoader = new GLTFLoader();
   emit("loading-progress", 40);
 
@@ -124,951 +123,675 @@ const initThreeJS = async () => {
   mouseVector = new THREE.Vector2();
   emit("loading-progress", 50);
 
-  // Appliquer le niveau de qualité initial
-  setQualityLevel(props.quality);
-
+  applyQualityLevel(props.quality);
   await createSolarSystem();
   emit("loading-progress", 70);
 
   addLighting();
   emit("loading-progress", 80);
 
-  addParticleEffects();
+  addParticles();
   emit("loading-progress", 90);
 
   animate();
   setupEventListeners();
   emit("loading-progress", 100);
+
+  // Attendre que les textures GPU soient uploadées (quelques frames de rendu réel)
+  // → quand l'écran de chargement disparaît, tout est déjà rendu proprement
+  await new Promise<void>((resolve) => {
+    let frames = 0;
+    const warmup = (): void => { if (++frames >= 10) resolve(); else requestAnimationFrame(warmup); };
+    requestAnimationFrame(warmup);
+  });
+
   emit("loading-complete");
 };
 
-// Fonction pour configurer le post-processing
-const setupPostProcessing = () => {
+// ---------------------------------------------------------------------------
+// Post-processing
+// ---------------------------------------------------------------------------
+const setupPostProcessing = (): void => {
   composer = new EffectComposer(renderer);
-  const renderPass = new RenderPass(scene, camera);
-  composer.addPass(renderPass);
+  composer.addPass(new RenderPass(scene, camera));
+
   bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.6,
-    0.4,
-    0.75
+    0.5, 0.4, 0.95
   );
   composer.addPass(bloomPass);
+
   const atmosphereShader = {
-    uniforms: {
-      tDiffuse: { value: null },
-      time: { value: 0 },
-    },
+    uniforms: { tDiffuse: { value: null }, time: { value: 0 } },
     vertexShader: `
       varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
     `,
     fragmentShader: `
-      uniform sampler2D tDiffuse;
-      uniform float time;
-      varying vec2 vUv;
+      uniform sampler2D tDiffuse; uniform float time; varying vec2 vUv;
       void main() {
         vec4 color = texture2D(tDiffuse, vUv);
-        color.rgb *= 1.05;
-        float flicker = sin(time * 2.0 + vUv.x * 10.0) * 0.015;
-        color.rgb += flicker;
+        color.rgb *= 1.04;
+        color.rgb += sin(time * 2.0 + vUv.x * 10.0) * 0.012;
         gl_FragColor = color;
       }
     `,
   };
-  const atmospherePass = new ShaderPass(atmosphereShader);
-  composer.addPass(atmospherePass);
+  composer.addPass(new ShaderPass(atmosphereShader));
 };
 
-// Fonction pour créer le système solaire
-const createSolarSystem = async () => {
-  const sunData = {
-    id: "sun",
-    name: "Soleil",
-    modelName: "sun.glb",
-    size: 2,
-  };
-  sunData.modelUrl = import.meta.env.BASE_URL + sunData.modelName;
-
+// ---------------------------------------------------------------------------
+// Création du système solaire (chargements en parallèle)
+// ---------------------------------------------------------------------------
+const createSolarSystem = async (): Promise<void> => {
+  // Soleil
+  const sunModelUrl = import.meta.env.BASE_URL + "sun.glb";
   try {
-    sun = await loadPlanetModel(sunData);
+    sun = await loadGLTF(sunModelUrl, 2.5);
     sun.traverse((child) => {
-      if (child.isMesh && child.material) {
-        child.material.emissive = new THREE.Color(0xffeb3b);
-        child.material.emissiveIntensity = 1.0;
-        child.material.needsUpdate = true;
-        child.castShadow = false;
-        child.receiveShadow = false;
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        mat.emissive = new THREE.Color(0xffcc00);
+        mat.emissiveIntensity = 3.0;
+        mat.needsUpdate = true;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
       }
     });
-    sun.castShadow = false;
-    sun.receiveShadow = false;
-    scene.add(sun);
-  } catch (error) {
-    console.error(
-      "Erreur lors du chargement du soleil GLB, utilisation de la texture par défaut:",
-      error
-    );
-    const sunGeometry = new THREE.SphereGeometry(2, 64, 64);
-    const sunTexture = createSunTexture();
-    const sunMaterial = new THREE.MeshBasicMaterial({
-      map: sunTexture,
-      emissive: 0xffeb3b,
-      emissiveIntensity: 1.0,
-    });
-    sun = new THREE.Mesh(sunGeometry, sunMaterial);
-    sun.castShadow = false;
-    sun.receiveShadow = false;
-    scene.add(sun);
+  } catch {
+    sun = createProceduralSun();
   }
-  const sunHaloGeometry = new THREE.SphereGeometry(2.4, 64, 64);
-  const sunHaloMaterial = new THREE.MeshBasicMaterial({
-    color: 0xff4500,
-    transparent: true,
-    opacity: 0.1,
-    side: THREE.BackSide,
-  });
-  const sunHalo = new THREE.Mesh(sunHaloGeometry, sunHaloMaterial);
+  sun.castShadow = false;
+  sun.receiveShadow = false;
+  scene.add(sun);
+
+  const sunHalo = new THREE.Mesh(
+    new THREE.SphereGeometry(2.9, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 0.13, side: THREE.BackSide })
+  );
   scene.add(sunHalo);
-  for (let i = 0; i < planetsData.length; i++) {
-    const planetData = planetsData[i];
-    const planetGroup = new THREE.Group();
-    planetData.modelUrl = import.meta.env.BASE_URL + planetData.modelName;
-    const planetMesh = await loadPlanetModel(planetData);
-    planetMesh.userData = { planetId: planetData.id, planetData: planetData };
-    const angle = planetData.initialAngle;
-    planetMesh.position.set(
-      Math.cos(angle) * planetData.orbitRadius,
-      0,
-      Math.sin(angle) * planetData.orbitRadius
-    );
-    planetGroup.add(planetMesh);
 
-    // Ajouter l'atmosphère améliorée
-    const atmosphere = createPlanetAtmosphere(planetData, planetMesh);
-    atmosphere.position.copy(planetMesh.position);
-    planetGroup.add(atmosphere);
+  // Planètes — chargement en parallèle
+  const planetSetups = await Promise.all(planetsData.map((pd) => loadPlanet(pd)));
 
-    const orbitGeometry = new THREE.RingGeometry(
-      planetData.orbitRadius - 0.01,
-      planetData.orbitRadius + 0.01,
-      128
-    );
-    const orbitMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.12,
-      side: THREE.DoubleSide,
-    });
-    const orbit = new THREE.Mesh(orbitGeometry, orbitMaterial);
-    orbit.rotation.x = Math.PI / 2;
-    planetGroup.add(orbit);
-    scene.add(planetGroup);
-    planetMeshes.push(planetMesh);
-    planetGroups.push(planetGroup);
+  for (const { mesh, atmosphere, orbitLine } of planetSetups) {
+    const group = new THREE.Group();
+    group.add(mesh);
+    group.add(atmosphere);
+    group.add(orbitLine);
+    scene.add(group);
+    planetMeshes.push(mesh);
+    planetGroups.push(group);
+    atmosphereGroups.push(atmosphere);
   }
 };
 
-// Fonction pour ajouter l'éclairage
-const addLighting = () => {
-  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-  scene.add(ambientLight);
-  const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
-  directionalLight.position.set(10, 20, 10);
-  directionalLight.castShadow = true;
-  directionalLight.shadow.mapSize.width = 1024;
-  directionalLight.shadow.mapSize.height = 1024;
-  directionalLight.shadow.camera.near = 0.5;
-  directionalLight.shadow.camera.far = 100;
-  directionalLight.shadow.camera.left = -50;
-  directionalLight.shadow.camera.right = 50;
-  directionalLight.shadow.camera.top = 50;
-  directionalLight.shadow.camera.bottom = -50;
-  scene.add(directionalLight);
-  const sunLight = new THREE.PointLight(0xfff8dc, 1, 50);
+// ---------------------------------------------------------------------------
+// Chargement d'une planète
+// ---------------------------------------------------------------------------
+const loadPlanet = async (pd: PlanetData): Promise<{
+  mesh: THREE.Object3D;
+  atmosphere: THREE.Group;
+  orbitLine: THREE.Mesh;
+}> => {
+  const angle = pd.initialAngle;
+  const x = Math.cos(angle) * pd.orbitRadius;
+  const z = Math.sin(angle) * pd.orbitRadius;
+
+  let mesh: THREE.Object3D;
+  if (pd.modelName) {
+    const modelUrl = import.meta.env.BASE_URL + pd.modelName;
+    try {
+      mesh = await loadGLTF(modelUrl, pd.size);
+    } catch {
+      mesh = createProceduralSphere(pd);
+    }
+  } else {
+    mesh = createProceduralSphere(pd);
+  }
+
+  mesh.position.set(x, 0, z);
+  mesh.userData = { planetId: pd.id };
+
+  // Atmosphère
+  const atmosphere = buildAtmosphere(pd);
+  atmosphere.position.set(x, 0, z);
+
+  // Orbite
+  const orbitRing = new THREE.Mesh(
+    new THREE.RingGeometry(pd.orbitRadius - 0.01, pd.orbitRadius + 0.01, 128),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
+  );
+  orbitRing.rotation.x = Math.PI / 2;
+
+  return { mesh, atmosphere, orbitLine: orbitRing };
+};
+
+// ---------------------------------------------------------------------------
+// Chargement GLTF
+// ---------------------------------------------------------------------------
+const loadGLTF = (url: string, targetSize: number): Promise<THREE.Object3D> =>
+  new Promise((resolve, reject) => {
+    gltfLoader.load(
+      url,
+      (gltf) => {
+        const model = gltf.scene;
+
+        // -----------------------------------------------------------------------
+        // Nettoyage des meshes secondaires dans les GLBs Sketchfab
+        //
+        // 1. Désactiver le raycasting sur les meshes PLATS (anneaux, disques)
+        //    → évite des zones de clic parasites autour de Saturne
+        //
+        // 2. Parmi les sphères, cacher :
+        //    a) Le background géant : si la plus grande sphère > 3x la 2ème plus grande
+        //    b) Les micro-sphères (lunes, détails) : < 20% du corps principal
+        //       Ex. Saturn GLB contient Mimas, Enceladus, Dione, Rhea, Tethys
+        //       → ces lunes (0.016–0.3) cachaient Saturne body (10.0) sous l'ancienne logique
+        // -----------------------------------------------------------------------
+        const sphericalMeshes: Array<{ mesh: THREE.Mesh; maxDim: number }> = [];
+        model.traverse((child) => {
+          if (!(child as THREE.Mesh).isMesh) return;
+          const mesh = child as THREE.Mesh;
+          const s = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3());
+          const maxDim = Math.max(s.x, s.y, s.z);
+          const minDim = Math.min(s.x, s.y, s.z);
+          if (maxDim > 0) {
+            if (minDim / maxDim < 0.1) {
+              // Mesh plat (anneaux, disques) → désactiver raycasting pour éviter faux clics
+              mesh.raycast = (): void => {};
+            } else if (minDim / maxDim > 0.4) {
+              // Sphérique → candidat pour détection background/lunes
+              sphericalMeshes.push({ mesh, maxDim });
+            }
+          }
+        });
+
+        if (sphericalMeshes.length >= 2) {
+          // Trier du plus grand au plus petit
+          sphericalMeshes.sort((a, b) => b.maxDim - a.maxDim);
+          const largestSize = sphericalMeshes[0].maxDim;
+          const secondSize  = sphericalMeshes[1].maxDim;
+
+          // a) Cacher le background géant (la plus grande sphère > 3x la 2ème)
+          if (largestSize > secondSize * 3) {
+            sphericalMeshes[0].mesh.visible = false;
+          }
+
+          // b) Corps effectif = première sphère encore visible
+          const bodySize = sphericalMeshes.find((s) => s.mesh.visible !== false)?.maxDim ?? largestSize;
+
+          // c) Cacher les micro-sphères (lunes, détails) < 20% du corps principal
+          for (const { mesh, maxDim } of sphericalMeshes) {
+            if (mesh.visible !== false && maxDim < bodySize * 0.2) {
+              mesh.visible = false;
+            }
+          }
+        }
+
+        // Bounding box uniquement des meshes visibles
+        const box = new THREE.Box3();
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh && child.visible) box.expandByObject(child);
+        });
+        if (box.isEmpty()) box.setFromObject(model);
+
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+
+        // Pour Saturne (et tout modèle avec anneaux dans le plan XZ), les anneaux gonflent
+        // size.x et size.z mais pas size.y. On utilise size.y (hauteur du modèle = corps planétaire)
+        // pour que la planète ait la bonne taille — pas écrasée par les anneaux.
+        // Pour les sphères pures, size.y ≈ maxDim, donc pas de différence.
+        const refDim = size.y > 0 ? size.y : Math.max(size.x, size.y, size.z);
+        const scale = (targetSize * 2) / refDim;
+
+        // Centrer le modèle dans un wrapper — ainsi mesh.position.set() dans loadPlanet
+        // déplace le wrapper sans perdre le centrage du modèle.
+        const wrapper = new THREE.Group();
+        model.scale.setScalar(scale);
+        model.position.sub(center.multiplyScalar(scale));
+        wrapper.add(model);
+
+        wrapper.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const mat of mats as THREE.MeshStandardMaterial[]) {
+              if (!mat) continue;
+              // Ne pas forcer transparent : le loader GLTF configure ça correctement.
+              // Forcer transparent = true sur des matériaux opaques casse le tri de profondeur
+              // et cause des flickerings (ex. Jupiter).
+              // Forcer roughness=1 / metalness=0 sur TOUS les matériaux planétaires :
+              // les planètes ne sont pas métalliques, et une roughness basse depuis Sketchfab
+              // crée des highlights spéculaires qui explosent le bloom (flash blanc sur Saturne).
+              mat.roughness = 1.0;
+              mat.metalness = 0.0;
+              // Légère emissive pour visibilité dans la scène sombre
+              if (mat.emissive && !mat.emissiveMap) {
+                mat.emissive.setHex(0x0a0a0a);
+                mat.emissiveIntensity = 0.08;
+              }
+              mat.needsUpdate = true;
+            }
+          }
+        });
+        resolve(wrapper);
+      },
+      undefined,
+      reject
+    );
+  });
+
+// ---------------------------------------------------------------------------
+// Sphère procédurale (Venus, Uranus, ou fallback)
+// ---------------------------------------------------------------------------
+const createProceduralSphere = (pd: PlanetData): THREE.Mesh => {
+  const geometry = new THREE.SphereGeometry(pd.size, 64, 64);
+  const material = new THREE.MeshStandardMaterial({
+    color: pd.sphereColor ?? 0xaaaaaa,
+    roughness: 0.7,
+    metalness: 0.1,
+    emissive: new THREE.Color(pd.atmosphereColor),
+    emissiveIntensity: 0.05,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+};
+
+// ---------------------------------------------------------------------------
+// Soleil procédural (fallback)
+// ---------------------------------------------------------------------------
+const createProceduralSun = (): THREE.Mesh => {
+  const geometry = new THREE.SphereGeometry(2.5, 64, 64);
+  const material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+  return new THREE.Mesh(geometry, material);
+};
+
+// ---------------------------------------------------------------------------
+// Atmosphère planétaire
+// ---------------------------------------------------------------------------
+const buildAtmosphere = (pd: PlanetData): THREE.Group => {
+  const group = new THREE.Group();
+
+  const atmoMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(pd.size * 1.1, 48, 48),
+    new THREE.MeshPhongMaterial({
+      color: pd.atmosphereColor,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.BackSide,
+      shininess: 100,
+    })
+  );
+  group.add(atmoMesh);
+
+  const hazeMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(pd.size * 1.15, 48, 48),
+    new THREE.MeshPhongMaterial({
+      color: pd.atmosphereColor,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.FrontSide,
+      shininess: 50,
+    })
+  );
+  group.add(hazeMesh);
+
+  const glowMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(pd.size * 1.2, 48, 48),
+    new THREE.ShaderMaterial({
+      uniforms: {
+        color: { value: new THREE.Color(pd.atmosphereColor) },
+        time: { value: 0 },
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vPosition = position;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 color; uniform float time;
+        varying vec3 vNormal; varying vec3 vPosition;
+        void main() {
+          float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+          intensity += sin(vPosition.y * 10.0 + time) * 0.08;
+          gl_FragColor = vec4(color, intensity * 0.28);
+        }
+      `,
+      transparent: true,
+      side: THREE.BackSide,
+    })
+  );
+  group.add(glowMesh);
+
+  return group;
+};
+
+// ---------------------------------------------------------------------------
+// Éclairage
+// ---------------------------------------------------------------------------
+const addLighting = (): void => {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+  dirLight.position.set(10, 20, 10);
+  scene.add(dirLight);
+
+  const sunLight = new THREE.PointLight(0xfff8dc, 1.0, 70);
   sunLight.position.set(0, 0, 0);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.width = 1024;
-  sunLight.shadow.mapSize.height = 1024;
   scene.add(sunLight);
-  const fillLight1 = new THREE.DirectionalLight(0xffe4b5, 2.0);
-  fillLight1.position.set(-20, 10, -20);
-  scene.add(fillLight1);
-  const fillLight2 = new THREE.DirectionalLight(0xe6f3ff, 1.8);
-  fillLight2.position.set(20, -10, 20);
-  scene.add(fillLight2);
-  const fillLight3 = new THREE.DirectionalLight(0xfff0e6, 1.5);
-  fillLight3.position.set(0, -15, 0);
-  scene.add(fillLight3);
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
-  scene.add(hemiLight);
-  const secondaryLight1 = new THREE.PointLight(0xffe0bd, 4.0, 120);
-  secondaryLight1.position.set(0, -30, -30);
-  scene.add(secondaryLight1);
-  const secondaryLight2 = new THREE.PointLight(0xe0f6ff, 3.5, 120);
-  secondaryLight2.position.set(30, 0, 30);
-  scene.add(secondaryLight2);
-  const backLight = new THREE.DirectionalLight(0xffffff, 1.0);
-  backLight.position.set(0, 0, -20);
-  scene.add(backLight);
+
+  const fill1 = new THREE.DirectionalLight(0xffe4b5, 1.2);
+  fill1.position.set(-20, 10, -20);
+  scene.add(fill1);
+
+  const fill2 = new THREE.DirectionalLight(0xe6f3ff, 1.0);
+  fill2.position.set(20, -10, 20);
+  scene.add(fill2);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
 };
 
-// Fonction pour ajouter des effets de particules
-const addParticleEffects = () => {
-  // Particules d'étoiles lointaines
-  const starCount = 1000;
-  const starGeometry = new THREE.BufferGeometry();
-  const starPositions = new Float32Array(starCount * 3);
-  const starSizes = new Float32Array(starCount);
-  const starColors = new Float32Array(starCount * 3);
+// ---------------------------------------------------------------------------
+// Texture étoile : fond NOIR + gradient blanc radial
+// Avec AdditiveBlending, le noir ajoute 0 à la scène → invisible → pas de carré.
+// Seul le centre lumineux s'additionne → aspect étoile glowing même à 3-4px.
+// ---------------------------------------------------------------------------
+const createStarTexture = (): THREE.Texture => {
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  // Fond noir (pas transparent) → noir + AdditiveBlending = rien ajouté
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, size, size);
+  // Gradient blanc au centre → noir au bord
+  const c = size / 2;
+  const grad = ctx.createRadialGradient(c, c, 0, c, c, c);
+  grad.addColorStop(0,    "rgba(255,255,255,1)");
+  grad.addColorStop(0.15, "rgba(255,255,255,0.9)");
+  grad.addColorStop(0.4,  "rgba(255,255,255,0.3)");
+  grad.addColorStop(1,    "rgba(0,0,0,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+};
 
-  for (let i = 0; i < starCount; i++) {
-    const i3 = i * 3;
-    // Position aléatoire dans une sphère
-    const radius = 100 + Math.random() * 400;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
+// ---------------------------------------------------------------------------
+// Particules (étoiles)
+// ---------------------------------------------------------------------------
+const addParticles = (): void => {
+  const starTexture = createStarTexture();
 
-    starPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-    starPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-    starPositions[i3 + 2] = radius * Math.cos(phi);
-
-    // Taille variable des étoiles
-    starSizes[i] = Math.random() * 1.2;
-
-    // Couleurs des étoiles avec des tons bleutés
-    const color = new THREE.Color();
-    color.setHSL(0.6 + Math.random() * 0.1, 0.8, 0.5 + Math.random() * 0.3);
-    starColors[i3] = color.r;
-    starColors[i3 + 1] = color.g;
-    starColors[i3 + 2] = color.b;
-  }
-
-  starGeometry.setAttribute(
-    "position",
-    new THREE.BufferAttribute(starPositions, 3)
-  );
-  starGeometry.setAttribute("size", new THREE.BufferAttribute(starSizes, 1));
-  starGeometry.setAttribute("color", new THREE.BufferAttribute(starColors, 3));
-
-  const starMaterial = new THREE.PointsMaterial({
-    size: 0.7,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.7,
-    sizeAttenuation: true,
-    depthWrite: false,
-  });
-
-  const stars = new THREE.Points(starGeometry, starMaterial);
-  scene.add(stars);
-
-  // Particules de poussière spatiale bleutée
-  const dustCount = 600;
-  const dustGeometry = new THREE.BufferGeometry();
-  const dustPositions = new Float32Array(dustCount * 3);
-  const dustSizes = new Float32Array(dustCount);
-  const dustColors = new Float32Array(dustCount * 3);
-
-  for (let i = 0; i < dustCount; i++) {
-    const i3 = i * 3;
-    // Position plus proche du système solaire
-    const radius = 20 + Math.random() * 80;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-
-    dustPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
-    dustPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
-    dustPositions[i3 + 2] = radius * Math.cos(phi);
-
-    dustSizes[i] = Math.random() * 0.25;
-
-    // Couleurs de la poussière avec des tons bleutés
-    const color = new THREE.Color();
-    color.setHSL(0.6 + Math.random() * 0.1, 0.6, 0.7 + Math.random() * 0.3);
-    dustColors[i3] = color.r;
-    dustColors[i3 + 1] = color.g;
-    dustColors[i3 + 2] = color.b;
-  }
-
-  dustGeometry.setAttribute(
-    "position",
-    new THREE.BufferAttribute(dustPositions, 3)
-  );
-  dustGeometry.setAttribute("size", new THREE.BufferAttribute(dustSizes, 1));
-  dustGeometry.setAttribute("color", new THREE.BufferAttribute(dustColors, 3));
-
-  const dustMaterial = new THREE.PointsMaterial({
-    size: 0.25,
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.4,
-    sizeAttenuation: true,
-    depthWrite: false,
-  });
-
-  const dust = new THREE.Points(dustGeometry, dustMaterial);
-  scene.add(dust);
-
-  // Ajout d'une lueur ambiante bleutée
-  const ambientGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(200, 32, 32),
-    new THREE.MeshBasicMaterial({
-      color: 0x1a237e,
+  const addStarCloud = (
+    count: number,
+    radiusMin: number,
+    radiusMax: number,
+    size: number,
+    opacity: number
+  ): void => {
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      const r = radiusMin + Math.random() * (radiusMax - radiusMin);
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+      // Variation naturelle : blanc (50%), bleuté (25%), doré (15%), rougeâtre (10%)
+      const roll = Math.random();
+      let c: THREE.Color;
+      if (roll < 0.50)      c = new THREE.Color().setHSL(0,    0,    0.7 + Math.random() * 0.3);
+      else if (roll < 0.75) c = new THREE.Color().setHSL(0.62, 0.5,  0.6 + Math.random() * 0.3);
+      else if (roll < 0.90) c = new THREE.Color().setHSL(0.10, 0.55, 0.6 + Math.random() * 0.3);
+      else                   c = new THREE.Color().setHSL(0.97, 0.4,  0.7 + Math.random() * 0.2);
+      colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    scene.add(new THREE.Points(geo, new THREE.PointsMaterial({
+      map: starTexture,
+      size,
+      vertexColors: true,
       transparent: true,
-      opacity: 0.05,
-      side: THREE.BackSide,
-    })
-  );
-  scene.add(ambientGlow);
+      opacity,
+      sizeAttenuation: false,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })));
+  };
 
-  // Ajout d'une deuxième couche de lueur plus proche
-  const innerGlow = new THREE.Mesh(
-    new THREE.SphereGeometry(100, 32, 32),
-    new THREE.MeshBasicMaterial({
-      color: 0x3949ab,
-      transparent: true,
-      opacity: 0.03,
-      side: THREE.BackSide,
-    })
-  );
-  scene.add(innerGlow);
+  // Couche principale — étoiles bien visibles, pas trop serrées
+  addStarCloud(1000, 120, 500, 4.0, 0.92);
+  // Couche secondaire — densité de fond, plus petites
+  addStarCloud(1300, 80,  450, 2.5, 0.78);
+  // Couche lointaine — piqués fins, effet profondeur
+  addStarCloud(700,  200, 550, 1.8, 0.58);
+  // Quelques étoiles brillantes type étoile à l'œil nu
+  addStarCloud(60,   100, 450, 6.0, 1.00);
+
+  // Lueur ambiante très subtile
+  scene.add(new THREE.Mesh(
+    new THREE.SphereGeometry(200, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0x0d1433, transparent: true, opacity: 0.04, side: THREE.BackSide })
+  ));
 };
 
-// Fonction pour créer une atmosphère planétaire
-const createPlanetAtmosphere = (planetData: any, planetMesh: THREE.Mesh) => {
-  const atmosphereGroup = new THREE.Group();
-
-  // Atmosphère principale
-  const atmosphereGeometry = new THREE.SphereGeometry(
-    planetData.size * 1.1,
-    64,
-    64
-  );
-  const atmosphereMaterial = new THREE.MeshPhongMaterial({
-    color: planetData.atmosphereColor || 0xffffff,
-    transparent: true,
-    opacity: 0.2,
-    side: THREE.BackSide,
-    shininess: 100,
-  });
-  const atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-  atmosphereGroup.add(atmosphere);
-
-  // Couche de brume
-  const hazeGeometry = new THREE.SphereGeometry(planetData.size * 1.15, 64, 64);
-  const hazeMaterial = new THREE.MeshPhongMaterial({
-    color: planetData.atmosphereColor || 0xffffff,
-    transparent: true,
-    opacity: 0.1,
-    side: THREE.FrontSide,
-    shininess: 50,
-  });
-  const haze = new THREE.Mesh(hazeGeometry, hazeMaterial);
-  atmosphereGroup.add(haze);
-
-  // Effet de lueur
-  const glowGeometry = new THREE.SphereGeometry(planetData.size * 1.2, 64, 64);
-  const glowMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      color: { value: new THREE.Color(planetData.atmosphereColor || 0xffffff) },
-      time: { value: 0 },
-    },
-    vertexShader: `
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      void main() {
-        vNormal = normalize(normalMatrix * normal);
-        vPosition = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 color;
-      uniform float time;
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      void main() {
-        float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
-        intensity += sin(vPosition.y * 10.0 + time) * 0.1;
-        gl_FragColor = vec4(color, intensity * 0.3);
-      }
-    `,
-    transparent: true,
-    side: THREE.BackSide,
-  });
-  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-  atmosphereGroup.add(glow);
-
-  return atmosphereGroup;
-};
-
-// Fonction pour animer la scène
-const animate = () => {
+// ---------------------------------------------------------------------------
+// Boucle d'animation
+// ---------------------------------------------------------------------------
+const animate = (): void => {
   animationId = requestAnimationFrame(animate);
 
-  // Calcul des statistiques de performance
+  // Stats de performance
   frameCount++;
-  const currentTime = performance.now();
-  if (currentTime - lastTime >= 1000) {
-    performanceStats.value.fps = Math.round(
-      (frameCount * 1000) / (currentTime - lastTime)
-    );
-    performanceStats.value.frameTime = Math.round(
-      1000 / performanceStats.value.fps
-    );
+  const now = performance.now();
+  if (now - lastTime >= 1000) {
+    performanceStats.value.fps = Math.round((frameCount * 1000) / (now - lastTime));
+    performanceStats.value.frameTime = Math.round(1000 / performanceStats.value.fps);
     frameCount = 0;
-    lastTime = currentTime;
+    lastTime = now;
   }
-
-  // Mise à jour des statistiques de rendu
   if (renderer) {
     const info = renderer.info;
     performanceStats.value.triangles = info.render.triangles;
     performanceStats.value.drawCalls = info.render.calls;
     performanceStats.value.memory = Math.round(info.memory.geometries / 1000);
-
-    // Émission des statistiques mises à jour
     emit("update-performance-stats", performanceStats.value);
   }
 
   controls.update();
-  if (sun) {
-    sun.rotation.y += 0.005;
-  }
+
+  if (sun) sun.rotation.y += 0.004;
+
   const time = Date.now() * 0.001;
-  planetMeshes.forEach((planetMesh, index) => {
-    const planetData = planetsData[index];
-    planetMesh.rotation.y += planetData.rotationSpeed;
-    if (index % 2 === 0) {
-      planetMesh.rotation.x = Math.sin(time * 0.1) * 0.05;
-    } else {
-      planetMesh.rotation.z = Math.sin(time * 0.15) * 0.03;
-    }
-    const angle = planetData.initialAngle + time * planetData.orbitSpeed;
-    const yOffset = Math.sin(time * 0.2 + index) * 0.5;
-    planetMesh.position.set(
-      Math.cos(angle) * planetData.orbitRadius,
+
+  planetMeshes.forEach((mesh, i) => {
+    const pd = planetsData[i];
+
+    // Rotation axiale
+    mesh.rotation.y += pd.rotationSpeed;
+
+    // Légère oscillation verticale
+    const yOffset = Math.sin(time * 0.15 + i) * 0.3;
+
+    // Position orbitale
+    const angle = pd.initialAngle + time * pd.orbitSpeed;
+    mesh.position.set(
+      Math.cos(angle) * pd.orbitRadius,
       yOffset,
-      Math.sin(angle) * planetData.orbitRadius
+      Math.sin(angle) * pd.orbitRadius
     );
 
-    // Mettre à jour l'atmosphère
-    const atmosphere = planetGroups[index].children.find(
-      (child) => child instanceof THREE.Group && child.children.length > 1
-    );
-    if (atmosphere) {
-      atmosphere.position.copy(planetMesh.position);
-      atmosphere.rotation.y += planetData.rotationSpeed * 0.5;
-
-      // Mettre à jour le shader de l'atmosphère
-      const glow = atmosphere.children[2];
-      if (glow.material.uniforms) {
-        glow.material.uniforms.time.value = time;
-      }
+    // Atmosphère suit la planète
+    const atmo = atmosphereGroups[i];
+    if (atmo) {
+      atmo.position.copy(mesh.position);
+      atmo.rotation.y += pd.rotationSpeed * 0.4;
+      const glow = atmo.children[2] as THREE.Mesh;
+      const mat = glow?.material as THREE.ShaderMaterial;
+      if (mat?.uniforms) mat.uniforms.time.value = time;
     }
   });
+
+  // Rendu
   if (composer) {
-    if (composer.passes[2] && composer.passes[2].uniforms) {
-      composer.passes[2].uniforms.time.value = time;
-    }
+    const pass = composer.passes[2] as ShaderPass;
+    if (pass?.uniforms) pass.uniforms.time.value = time;
     composer.render();
   } else {
     renderer.render(scene, camera);
   }
+
 };
 
-// Fonction pour configurer les événements
-const setupEventListeners = () => {
-  window.addEventListener("resize", onWindowResize);
-  renderer.domElement.addEventListener("click", onPlanetClick);
-  window.addEventListener("mousemove", onMouseMove);
-  controls.addEventListener("start", () => {
-    isUserInteracting = true;
-  });
-  controls.addEventListener("end", () => {
-    isUserInteracting = false;
-  });
-};
-
-// Fonction pour gérer le redimensionnement de la fenêtre
-const onWindowResize = () => {
+// ---------------------------------------------------------------------------
+// Événements
+// ---------------------------------------------------------------------------
+const onWindowResize = (): void => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  if (composer) {
-    composer.setSize(window.innerWidth, window.innerHeight);
-  }
+  composer?.setSize(window.innerWidth, window.innerHeight);
   isMobile = detectMobile();
 };
 
-// Fonction pour gérer le clic sur une planète
-const onPlanetClick = (event: MouseEvent) => {
+const onMouseDown = (event: MouseEvent): void => {
+  mouseDownX = event.clientX;
+  mouseDownY = event.clientY;
+};
+
+const onMouseUp = (event: MouseEvent): void => {
+  // Distinguer un vrai clic d'un glissement (drag pour orbiter la caméra)
+  // Si la souris a bougé de plus de 5px entre mousedown et mouseup → drag → ignorer
+  const dx = event.clientX - mouseDownX;
+  const dy = event.clientY - mouseDownY;
+  if (Math.sqrt(dx * dx + dy * dy) > 10) return;
+
   mouseVector.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouseVector.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouseVector, camera);
 
-  // Filtrer les planètes pour exclure le soleil
-  const validPlanets = planetMeshes.filter((mesh) => {
-    const planetId = mesh.userData?.planetId;
-    return planetId && planetId !== "sun";
-  });
-
-  // Vérifier les intersections uniquement avec les planètes valides
-  const intersects = raycaster.intersectObjects(validPlanets);
-
+  const intersects = raycaster.intersectObjects(planetMeshes, true);
   if (intersects.length > 0) {
-    const clickedPlanet = intersects[0].object;
-    handlePlanetClick(clickedPlanet.userData);
+    let obj: THREE.Object3D | null = intersects[0].object;
+    while (obj) {
+      if (obj.userData.planetId) {
+        zoomToPlanet(obj);
+        emit("navigate", obj.userData.planetId as string);
+        break;
+      }
+      obj = obj.parent;
+    }
   }
 };
 
-// Fonction pour gérer le mouvement de la souris
-const onMouseMove = (event: MouseEvent) => {
+const onMouseMove = (event: MouseEvent): void => {
   mouseVector.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouseVector.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouseVector, camera);
-
-  // Filtrer les planètes pour exclure le soleil
-  const validPlanets = planetMeshes.filter((mesh) => {
-    const planetId = mesh.userData?.planetId;
-    return planetId && planetId !== "sun";
-  });
-
-  const intersects = raycaster.intersectObjects(validPlanets);
-  if (intersects.length > 0) {
-    document.body.style.cursor = "pointer";
-  } else {
-    document.body.style.cursor = "auto";
-  }
+  const intersects = raycaster.intersectObjects(planetMeshes, true);
+  document.body.style.cursor = intersects.length > 0 ? "pointer" : "auto";
 };
 
-// Fonction pour créer l'animation de zoom direct vers une planète
-const createDirectZoomAnimation = (planetMesh: THREE.Mesh) => {
-  // Vérifier que ce n'est pas le soleil
-  if (planetMesh.userData.planetId === "sun") return;
+const setupEventListeners = (): void => {
+  window.addEventListener("resize", onWindowResize);
+  renderer.domElement.addEventListener("mousedown", onMouseDown);
+  renderer.domElement.addEventListener("mouseup", onMouseUp);
+  window.addEventListener("mousemove", onMouseMove);
+};
 
-  // Animation de la caméra
-  const startPosition = camera.position.clone();
-  const targetPosition = planetMesh.position
-    .clone()
-    .add(new THREE.Vector3(0, 2, 10)); // Ajustement de la position cible
+// ---------------------------------------------------------------------------
+// Animation caméra
+// ---------------------------------------------------------------------------
+const zoomToPlanet = (mesh: THREE.Object3D): void => {
+  const start = camera.position.clone();
+  const target = mesh.position.clone().add(new THREE.Vector3(0, mesh.userData.planetId === "jupiter" || mesh.userData.planetId === "saturn" ? 4 : 2, 8));
   const startTime = Date.now();
-  const duration = 2000;
+  const duration = 1800;
 
-  const animate = () => {
-    const elapsed = Date.now() - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-    // Déplacement direct vers la planète
-    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
-    camera.lookAt(planetMesh.position);
-
-    // Log pour déboguer les positions à des intervalles clés
-    if (progress === 0 || progress === 0.5 || progress === 1) {
-      console.log("Progress:", progress);
-      console.log("Camera Position:", camera.position);
-      console.log("Target Position:", targetPosition);
-      console.log("Planet Position:", planetMesh.position);
-      console.log(
-        "Delta Position:",
-        camera.position.clone().sub(planetMesh.position)
-      );
-    }
-
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    }
+  const tick = (): void => {
+    const p = Math.min((Date.now() - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    camera.position.lerpVectors(start, target, ease);
+    camera.lookAt(mesh.position);
+    if (p < 1) requestAnimationFrame(tick);
   };
-
-  animate();
+  tick();
 };
 
-// Fonction pour naviguer vers une planète
-const handlePlanetClick = (planet) => {
-  // Trouver le mesh de la planète
-  const planetMesh = planetMeshes.find(
-    (mesh) => mesh.userData.planetId === planet.planetId
-  );
-  if (planetMesh) {
-    createDirectZoomAnimation(planetMesh);
-  }
-  emit("navigate", planet.planetId);
-};
-
-// Fonction pour créer une texture de soleil par défaut
-const createSunTexture = () => {
-  const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 1024;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return new THREE.Texture();
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, 1024, 1024);
-  const gradient = ctx.createRadialGradient(512, 512, 0, 512, 512, 450);
-  gradient.addColorStop(0, "#ffffff");
-  gradient.addColorStop(0.1, "#fffde7");
-  gradient.addColorStop(0.2, "#fff59d");
-  gradient.addColorStop(0.4, "#ffeb3b");
-  gradient.addColorStop(0.6, "#ffa000");
-  gradient.addColorStop(0.8, "#ff6f00");
-  gradient.addColorStop(0.9, "#e65100");
-  gradient.addColorStop(1, "#bf360c");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, 1024, 1024);
-  for (let i = 0; i < 2000; i++) {
-    const x = Math.random() * 1024;
-    const y = Math.random() * 1024;
-    const distanceFromCenter = Math.sqrt(
-      Math.pow(x - 512, 2) + Math.pow(y - 512, 2)
-    );
-    if (distanceFromCenter < 450) {
-      const size = Math.random() * 8 + 2;
-      const brightness = Math.random() * 0.3 + 0.7;
-      ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.3})`;
-      ctx.beginPath();
-      ctx.arc(x, y, size, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  for (let i = 0; i < 12; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const distance = Math.random() * 300 + 50;
-    const x = 512 + Math.cos(angle) * distance;
-    const y = 512 + Math.sin(angle) * distance;
-    const size = Math.random() * 30 + 10;
-    const spotGradient = ctx.createRadialGradient(x, y, 0, x, y, size);
-    spotGradient.addColorStop(0, "rgba(50, 50, 50, 0.8)");
-    spotGradient.addColorStop(0.5, "rgba(80, 50, 20, 0.6)");
-    spotGradient.addColorStop(1, "rgba(255, 140, 0, 0)");
-    ctx.fillStyle = spotGradient;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  for (let i = 0; i < 20; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const x = 512 + Math.cos(angle) * 450;
-    const y = 512 + Math.sin(angle) * 450;
-    const length = Math.random() * 100 + 50;
-    const width = Math.random() * 20 + 10;
-    const endX = 512 + Math.cos(angle) * (450 + length);
-    const endY = 512 + Math.sin(angle) * (450 + length);
-    const ctrlX =
-      512 + Math.cos(angle + Math.random() * 0.4 - 0.2) * (450 + length * 0.7);
-    const ctrlY =
-      512 + Math.sin(angle + Math.random() * 0.4 - 0.2) * (450 + length * 0.7);
-    const eruptionGradient = ctx.createLinearGradient(x, y, endX, endY);
-    eruptionGradient.addColorStop(0, "rgba(255, 255, 0, 0.8)");
-    eruptionGradient.addColorStop(0.5, "rgba(255, 165, 0, 0.5)");
-    eruptionGradient.addColorStop(1, "rgba(255, 69, 0, 0)");
-    ctx.strokeStyle = eruptionGradient;
-    ctx.lineWidth = width;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
-    ctx.stroke();
-  }
-  return new THREE.CanvasTexture(canvas);
-};
-
-// Fonction pour charger un modèle de planète
-const loadPlanetModel = async (planetData: any) => {
-  if (!planetData.modelUrl) {
-    console.log(
-      `${planetData.name}: Pas de modèle URL, création d'une sphère par défaut`
-    );
-    return createDefaultPlanet(planetData);
-  }
-  const modelUrl =
-    planetsData.modelUrl || import.meta.env.BASE_URL + planetData.modelName;
-  console.log(`🚀 Début du chargement du modèle pour ${planetData.name}`);
-  console.log(`📁 URL du modèle: ${modelUrl}`);
-  return new Promise<THREE.Mesh>((resolve) => {
-    gltfLoader.load(
-      modelUrl,
-      (gltf) => {
-        console.log(
-          `✅ Modèle chargé avec succès pour ${planetData.name}:`,
-          gltf
-        );
-        const model = gltf.scene;
-        model.userData = {
-          planetId: planetData.id,
-          planetData: planetData,
-        };
-        if (model.children.length === 0) {
-          console.warn(
-            `⚠️ Le modèle ${planetData.name} semble vide, utilisation de la sphère par défaut`
-          );
-          const fallbackPlanet = createDefaultPlanet(planetData);
-          fallbackPlanet.userData = {
-            planetId: planetData.id,
-            planetData: planetData,
-          };
-          resolve(fallbackPlanet);
-          return;
-        }
-        const box = new THREE.Box3().setFromObject(model);
-        const size = box.getSize(new THREE.Vector3());
-        const center = box.getCenter(new THREE.Vector3());
-        console.log(`📏 Taille originale du modèle:`, size);
-        console.log(`🎯 Centre du modèle:`, center);
-        const maxSize = Math.max(size.x, size.y, size.z);
-        const targetSize = planetData.size * 2;
-        const scale = targetSize / maxSize;
-        console.log(
-          `🔍 Taille max: ${maxSize}, Taille cible: ${targetSize}, Échelle: ${scale}`
-        );
-        model.scale.setScalar(scale);
-        console.log(`📐 Échelle appliquée:`, model.scale);
-        model.position.sub(center.multiplyScalar(scale));
-        console.log(`📍 Position finale:`, model.position);
-        model.traverse((child) => {
-          if (child.isMesh) {
-            console.log(
-              `🔧 Configuration du mesh: ${child.name || "sans nom"}`
-            );
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.userData = {
-              planetId: planetData.id,
-              planetData: planetData,
-            };
-            if (child.material) {
-              child.material.transparent = false;
-              child.material.opacity = 1.0;
-              child.material.visible = true;
-              if (child.material.emissive) {
-                child.material.emissive.setHex(0x111111);
-                child.material.emissiveIntensity = 0.1;
-              }
-              child.material.roughness = 0.7;
-              child.material.metalness = 0.1;
-              child.material.needsUpdate = true;
-              console.log(`✨ Matériau configuré:`, child.material);
-            }
-          }
-        });
-        console.log(
-          `🎉 Modèle ${planetData.name} prêt à être ajouté à la scène`
-        );
-        console.log(`🔍 UserData du modèle:`, model.userData);
-        resolve(model);
-      },
-      (xhr) => {
-        const percent = Math.floor((xhr.loaded / xhr.total) * 100);
-        console.log(
-          `📊 Chargement ${planetData.name}: ${percent}% (${xhr.loaded}/${xhr.total} bytes)`
-        );
-      },
-      (error) => {
-        console.error(
-          `❌ ERREUR lors du chargement du modèle ${planetData.name}:`,
-          error
-        );
-        console.error(`🔗 URL tentée: ${planetData.modelUrl}`);
-        console.error(`📝 Message d'erreur: ${error.message}`);
-        console.error(`🔍 Type d'erreur: ${error.type || "inconnu"}`);
-        console.log(
-          `🔄 Utilisation de la sphère par défaut pour ${planetData.name}`
-        );
-        const fallbackPlanet = createDefaultPlanet(planetData);
-        fallbackPlanet.userData = {
-          planetId: planetData.id,
-          planetData: planetData,
-        };
-        resolve(fallbackPlanet);
-      }
-    );
-  });
-};
-
-// Fonction pour créer une planète par défaut
-const createDefaultPlanet = (planetData: any) => {
-  console.log(`🟦 Création d'une planète par défaut pour ${planetData.name}`);
-  const geometry = new THREE.SphereGeometry(planetData.size, 64, 64);
-  const material = new THREE.MeshStandardMaterial({
-    color: planetData.color,
-    roughness: 0.7,
-    metalness: 0.1,
-    emissive: planetData.texture.emissive || 0x000000,
-    emissiveIntensity: 0.2,
-  });
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  console.log(`✅ Cube créé pour ${planetData.name}:`, mesh);
-  return mesh;
-};
-
-const setQualityLevel = (level: string) => {
-  qualityLevel.value = level;
-
-  // Ajuster le pixel ratio en fonction de la qualité
-  if (renderer) {
-    const newPixelRatio = Math.min(
-      window.devicePixelRatio,
-      level === "high" ? 2 : 0.8
-    );
-    renderer.setPixelRatio(newPixelRatio);
-  }
-
-  // Ajuster les paramètres de bloom
-  if (composer && bloomPass) {
-    // Retour aux valeurs d'origine pour haute qualité
-    bloomPass.strength = level === "high" ? 0.6 : 0.4;
-    bloomPass.radius = level === "high" ? 0.75 : 0.5;
-    bloomPass.threshold = level === "high" ? 0.4 : 0.5;
-  }
-
-  // Ajuster la qualité des ombres
-  if (renderer) {
-    renderer.shadowMap.enabled = level === "high";
-    renderer.shadowMap.type =
-      level === "high" ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
-  }
-
-  // Ajuster la qualité des particules
-  scene.traverse((object) => {
-    if (object instanceof THREE.Points) {
-      const material = object.material as THREE.PointsMaterial;
-
-      if (level === "high") {
-        material.size = material.userData.originalSize || 0.7;
-        material.opacity = material.userData.originalOpacity || 0.7;
-        material.blending = THREE.NormalBlending;
-      } else {
-        if (!material.userData.originalSize) {
-          material.userData.originalSize = material.size;
-          material.userData.originalOpacity = material.opacity;
-        }
-        // Amélioration des particules en qualité moyenne uniquement
-        material.size *= 0.75;
-        material.opacity *= 0.75;
-        material.blending = THREE.AdditiveBlending;
-      }
-      material.needsUpdate = true;
-    }
-  });
-
-  // Ajuster la qualité des atmosphères planétaires
-  planetGroups.forEach((group) => {
-    group.traverse((object) => {
-      if (object instanceof THREE.Mesh && object.material) {
-        const material = object.material as THREE.MeshBasicMaterial;
-        if (material.transparent) {
-          if (level === "high") {
-            material.opacity = material.userData.originalOpacity || 0.2;
-          } else {
-            if (!material.userData.originalOpacity) {
-              material.userData.originalOpacity = material.opacity;
-            }
-            material.opacity *= 0.75;
-          }
-          material.needsUpdate = true;
-        }
-      }
-    });
-  });
-
-  // Forcer une mise à jour du rendu
-  if (composer) {
-    composer.render();
-  } else if (renderer) {
-    renderer.render(scene, camera);
-  }
-};
-
-// Surveiller les changements de qualité
-watch(
-  () => props.quality,
-  (newQuality) => {
-    setQualityLevel(newQuality);
-  }
-);
-
-// Fonction pour animer le retour de la caméra
-const animateCameraReturn = () => {
-  const startPosition = camera.position.clone();
-  const targetPosition = new THREE.Vector3(0, 5, 25); // Position initiale de la caméra
+const animateCameraReturn = (): void => {
+  const start = camera.position.clone();
+  const target = new THREE.Vector3(0, 12, 55);
   const startTime = Date.now();
-  const duration = 1500; // 1.5 secondes
+  const duration = 1500;
 
-  const animate = () => {
-    const elapsed = Date.now() - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-
-    // Fonction d'easing
-    const easeProgress = 1 - Math.pow(1 - progress, 3);
-
-    camera.position.lerpVectors(startPosition, targetPosition, easeProgress);
+  const tick = (): void => {
+    const p = Math.min((Date.now() - startTime) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    camera.position.lerpVectors(start, target, ease);
     camera.lookAt(new THREE.Vector3(0, 0, 0));
-
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    } else {
-      // Réinitialiser les contrôles de la caméra
-      controls.target.set(0, 0, 0);
-      controls.update();
-    }
+    if (p < 1) requestAnimationFrame(tick);
+    else { controls.target.set(0, 0, 0); controls.update(); }
   };
-
-  animate();
+  tick();
 };
 
-// Ajouter un watcher pour détecter la fermeture de la modal
+// ---------------------------------------------------------------------------
+// Qualité
+// ---------------------------------------------------------------------------
+const applyQualityLevel = (level: string): void => {
+  if (!renderer) return;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, level === "high" ? 2 : 0.8));
+  if (bloomPass) {
+    bloomPass.strength = level === "high" ? 0.5 : 0.3;
+    bloomPass.radius = level === "high" ? 0.75 : 0.5;
+  }
+  renderer.shadowMap.enabled = false;
+};
+
+// ---------------------------------------------------------------------------
+// Watchers
+// ---------------------------------------------------------------------------
+watch(() => props.quality, applyQualityLevel);
+
 watch(
   () => props.activePlanet,
-  (newValue, oldValue) => {
-    if (!newValue && oldValue) {
-      animateCameraReturn();
-    }
-  }
+  (next, prev) => { if (!next && prev) animateCameraReturn(); }
 );
 
-onMounted(() => {
-  initThreeJS();
-});
+// ---------------------------------------------------------------------------
+// Cycle de vie
+// ---------------------------------------------------------------------------
+onMounted(() => { initThreeJS(); });
 
 onUnmounted(() => {
-  if (animationId) {
-    cancelAnimationFrame(animationId);
-  }
-  if (renderer) {
-    renderer.dispose();
-  }
-  if (scene) {
-    scene.traverse((object) => {
-      if (object.geometry) {
-        object.geometry.dispose();
-      }
-      if (object.material) {
-        if (Array.isArray(object.material)) {
-          object.material.forEach((material) => material.dispose());
-        } else {
-          object.material.dispose();
-        }
-      }
-    });
-  }
+  cancelAnimationFrame(animationId);
   window.removeEventListener("resize", onWindowResize);
-  renderer.domElement.removeEventListener("click", onPlanetClick);
+  renderer?.domElement.removeEventListener("mousedown", onMouseDown);
+  renderer?.domElement.removeEventListener("mouseup", onMouseUp);
   window.removeEventListener("mousemove", onMouseMove);
+  scene?.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    mesh.geometry?.dispose();
+    if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose());
+    else mesh.material?.dispose();
+  });
+  renderer?.dispose();
+  document.body.style.cursor = "auto";
 });
 </script>
-
-<style scoped>
-canvas {
-  display: block;
-  cursor: grab;
-}
-canvas:active {
-  cursor: grabbing;
-}
-</style>

@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, onUnmounted, ref } from "vue";
 
 const props = defineProps({
   isLoading: { type: Boolean, required: true },
@@ -60,14 +60,17 @@ const messages = [
 ];
 
 let messageIndex = 0;
+let messageInterval: ReturnType<typeof setInterval>;
 
 onMounted(() => {
-  const messageInterval = setInterval(() => {
+  messageInterval = setInterval(() => {
     messageIndex = (messageIndex + 1) % messages.length;
     loadingMessage.value = messages[messageIndex];
   }, 2000);
+});
 
-  return () => clearInterval(messageInterval);
+onUnmounted(() => {
+  clearInterval(messageInterval);
 });
 </script>
 

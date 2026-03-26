@@ -26,30 +26,3 @@
   }
 }
 
-/* Styles pour les étoiles (difficiles à convertir en Tailwind) */
-.stars,
-.stars2,
-.stars3 {
-  background-image: radial-gradient(
-    white,
-    rgba(255, 255, 255, 0.2) 2px,
-    transparent 2px
-  );
-  background-size: 100px 100px;
-  background-repeat: repeat;
-}
-
-.stars {
-  background-size: 200px 200px;
-  animation: animateStars 100s linear infinite;
-}
-
-.stars2 {
-  background-size: 150px 150px;
-  animation: animateStars 150s linear infinite;
-}
-
-.stars3 {
-  background-size: 100px 100px;
-  animation: animateStars 200s linear infinite;
-}
