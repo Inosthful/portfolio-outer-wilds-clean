@@ -77,33 +77,33 @@ const currentStep = ref(0);
 
 const steps = [
   {
-    title: "Bienvenue dans le Système Solaire",
+    title: "Solar System Explorer",
     description:
-      "Explorez les 8 planètes de notre système solaire en 3D. Tailles, distances et vitesses orbitales sont représentatives des données réelles.",
+      "Une simulation 3D interactive de notre système solaire, construite à partir de données astronomiques réelles. 8 planètes, des orbites fidèles à la loi de Kepler, et des millions de kilomètres à explorer.",
     position: "center",
   },
   {
-    title: "Navigation",
+    title: "Se déplacer dans l'espace",
     description:
-      "Cliquez et faites glisser pour faire pivoter la vue. Utilisez la molette pour zoomer. Cliquez sur une planète pour en savoir plus.",
+      "Cliquez et glissez pour orbiter autour du soleil. Molette ou pincement pour zoomer. La caméra reste libre — perdez-vous dans le système.",
     position: "center",
   },
   {
-    title: "Données astronomiques",
+    title: "Explorer une planète",
     description:
-      "Chaque planète affiche ses données réelles : diamètre, masse, distance au Soleil, période orbitale, température et composition atmosphérique.",
+      "Cliquez sur n'importe quelle planète pour vous en approcher. Chaque monde révèle ses données réelles : diamètre, masse, distance, température, composition atmosphérique et un fait remarquable.",
     position: "center",
   },
   {
-    title: "Échelle de représentation",
+    title: "Échelles et orbites",
     description:
-      "Les distances sont compressées (échelle racine carrée) pour rester visibles. Les vitesses orbitales respectent la loi de Kepler — Mercure est la plus rapide.",
+      "Les distances sont compressées pour rester lisibles à l'écran, mais les vitesses respectent Kepler : Mercure boucle son orbite 20× plus vite que Neptune.",
     position: "center",
   },
   {
-    title: "Prêt à Explorer ?",
+    title: "Bonne exploration",
     description:
-      "Cliquez sur n'importe quelle planète pour découvrir ses caractéristiques. Bonne exploration !",
+      "Retrouvez toutes les planètes via le menu en haut à droite. Ce tutoriel reste accessible à tout moment depuis le bouton en bas à droite.",
     position: "center",
   },
 ];

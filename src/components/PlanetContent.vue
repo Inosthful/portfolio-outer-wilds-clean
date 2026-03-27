@@ -2,7 +2,8 @@
   <transition name="slide-up">
     <main
       v-if="activePlanet"
-      class="fixed bottom-0 left-0 w-full max-h-[85vh] overflow-y-auto bg-space-dark/90 backdrop-blur-xl p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] rounded-t-[40px] z-[101] border-t border-space-accent/20 shadow-[0_-4px_30px_rgba(0,0,0,0.3)]"
+      class="fixed bottom-0 left-0 w-full max-h-[85vh] overflow-y-auto bg-space-dark/90 backdrop-blur-xl p-6 sm:p-8 pb-[calc(env(safe-area-inset-bottom)+2rem)] rounded-t-[40px] z-[101] border-t shadow-[0_-4px_30px_rgba(0,0,0,0.3)]"
+      :style="{ borderTopColor: planetColor + '55' }"
     >
       <button
         @click="$emit('close')"
@@ -14,12 +15,18 @@
 
       <section :key="activePlanet" class="max-w-5xl mx-auto">
         <!-- En-tête -->
-        <div class="flex items-center gap-4 mb-6">
-          <div class="w-3 h-3 rounded-full bg-space-accent animate-pulse shrink-0"></div>
-          <div>
-            <h1 class="text-3xl sm:text-4xl text-space-accent font-space">{{ planet.name }}</h1>
+        <div class="flex items-center gap-5 mb-6">
+          <MiniPlanet
+            :modelName="planet.modelName"
+            :sphereColor="planet.sphereColor"
+            :containerSize="85"
+            class="shrink-0"
+          />
+          <div class="flex-1">
+            <h1 class="text-3xl sm:text-4xl font-space" :style="{ color: planetColor }">{{ planet.name }}</h1>
             <span class="text-xs text-space-light/50 font-space uppercase tracking-widest">{{ planet.info.type }}</span>
           </div>
+          <div class="w-2 h-2 rounded-full animate-pulse shrink-0 self-start mt-2" :style="{ backgroundColor: planetColor }"></div>
         </div>
 
         <!-- Grille de données -->
@@ -35,8 +42,8 @@
         </div>
 
         <!-- Fait marquant -->
-        <div class="bg-space-accent/5 border border-space-accent/15 rounded-2xl p-5">
-          <p class="text-xs font-space uppercase tracking-widest text-space-accent/60 mb-2">Fait marquant</p>
+        <div class="rounded-2xl p-5 border" :style="{ backgroundColor: planetColor + '0d', borderColor: planetColor + '30' }">
+          <p class="text-xs font-space uppercase tracking-widest mb-2" :style="{ color: planetColor + 'aa' }">Fait marquant</p>
           <p class="text-space-light/90 leading-relaxed text-sm sm:text-base">{{ planet.info.faitMarquant }}</p>
         </div>
       </section>
@@ -47,6 +54,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import DataCard from "./DataCard.vue";
+import MiniPlanet from "./MiniPlanet.vue";
 import { type PlanetData } from "../data/PlanetsData.js";
 
 const props = defineProps<{
@@ -55,6 +63,12 @@ const props = defineProps<{
 }>();
 
 defineEmits<{ (e: "close"): void }>();
+
+const planetColor = computed(() => {
+  const p = props.planets.find((p) => p.id === props.activePlanet);
+  if (!p) return "#FFE66D";
+  return "#" + p.atmosphereColor.toString(16).padStart(6, "0");
+});
 
 const planet = computed(
   () =>

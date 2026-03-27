@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { CSS2DRenderer, CSS2DObject } from "three/examples/jsm/renderers/CSS2DRenderer.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
@@ -68,6 +69,7 @@ let atmosphereGroups: THREE.Group[] = [];
 let animationId: number;
 let raycaster: THREE.Raycaster;
 let mouseVector: THREE.Vector2;
+let labelRenderer: CSS2DRenderer;
 let gltfLoader: GLTFLoader;
 let isMobile = false;
 let mouseDownX = 0;
@@ -105,6 +107,14 @@ const initThreeJS = async (): Promise<void> => {
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.5;
   solarSystemContainer.value?.appendChild(renderer.domElement);
+
+  labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(window.innerWidth, window.innerHeight);
+  labelRenderer.domElement.style.position = "absolute";
+  labelRenderer.domElement.style.top = "0";
+  labelRenderer.domElement.style.left = "0";
+  labelRenderer.domElement.style.pointerEvents = "none";
+  solarSystemContainer.value?.appendChild(labelRenderer.domElement);
 
   emit("loading-progress", 30);
 
@@ -247,12 +257,44 @@ const loadPlanet = async (pd: PlanetData): Promise<{
     } catch {
       mesh = createProceduralSphere(pd);
     }
+  } else if (pd.id === 'uranus') {
+    mesh = createUranusMesh(pd);
   } else {
     mesh = createProceduralSphere(pd);
   }
 
   mesh.position.set(x, 0, z);
   mesh.userData = { planetId: pd.id };
+
+  // Label 3D CSS2D
+  const atmoHex = "#" + pd.atmosphereColor.toString(16).padStart(6, "0");
+  const labelDiv = document.createElement("div");
+  labelDiv.style.cssText = `
+    color: rgba(255,255,255,0.85);
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+    text-shadow: 0 0 8px ${atmoHex}, 0 0 16px ${atmoHex}88;
+    padding-bottom: 6px;
+  `;
+  labelDiv.textContent = pd.name;
+
+  const lineDiv = document.createElement("div");
+  lineDiv.style.cssText = `
+    width: 1px;
+    height: 12px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.5), transparent);
+    margin: 0 auto;
+  `;
+  labelDiv.appendChild(lineDiv);
+
+  const label = new CSS2DObject(labelDiv);
+  label.position.set(0, pd.size + 0.7, 0);
+  mesh.add(label);
 
   // Atmosphère
   const atmosphere = buildAtmosphere(pd);
@@ -340,11 +382,12 @@ const loadGLTF = (url: string, targetSize: number): Promise<THREE.Object3D> =>
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
 
-        // Pour Saturne (et tout modèle avec anneaux dans le plan XZ), les anneaux gonflent
-        // size.x et size.z mais pas size.y. On utilise size.y (hauteur du modèle = corps planétaire)
-        // pour que la planète ait la bonne taille — pas écrasée par les anneaux.
-        // Pour les sphères pures, size.y ≈ maxDim, donc pas de différence.
-        const refDim = size.y > 0 ? size.y : Math.max(size.x, size.y, size.z);
+        // Utiliser le minimum des 3 dimensions : c'est toujours la dimension la moins
+        // affectée par les anneaux, quelle que soit leur orientation.
+        // Saturne (anneaux horizontaux) : min = size.y = corps planétaire ✓
+        // Uranus (anneaux quasi-verticaux, inclinaison 98°) : min = size.z ≈ corps planétaire ✓
+        // Sphères pures : size.x ≈ size.y ≈ size.z, donc aucune différence ✓
+        const refDim = Math.min(size.x, size.y, size.z);
         const scale = (targetSize * 2) / refDim;
 
         // Centrer le modèle dans un wrapper — ainsi mesh.position.set() dans loadPlanet
@@ -387,6 +430,63 @@ const loadGLTF = (url: string, targetSize: number): Promise<THREE.Object3D> =>
   });
 
 // ---------------------------------------------------------------------------
+// Uranus procédural — texture canvas réaliste
+// ---------------------------------------------------------------------------
+const createUranusMesh = (pd: PlanetData): THREE.Mesh => {
+  const W = 1024, H = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Dégradé pôle → équateur → pôle
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0.00, "#4a9aaa"); // pôle nord — plus sombre, légèrement bleuté
+  grad.addColorStop(0.20, "#62c8d0"); // latitude haute
+  grad.addColorStop(0.40, "#7ae8e8"); // mi-latitude
+  grad.addColorStop(0.50, "#8cf4f0"); // équateur — le plus lumineux/cyan
+  grad.addColorStop(0.60, "#7ae8e8");
+  grad.addColorStop(0.80, "#62c8d0");
+  grad.addColorStop(1.00, "#4a9aaa"); // pôle sud
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Très légères bandes horizontales (Uranus est quasi-featureless)
+  for (let y = 0; y < H; y++) {
+    const band =
+      Math.sin((y / H) * Math.PI * 18) * 0.018 +
+      Math.sin((y / H) * Math.PI * 7)  * 0.012 +
+      Math.sin((y / H) * Math.PI * 40) * 0.006;
+    const alpha = Math.max(0, band);
+    ctx.fillStyle = `rgba(0, 40, 50, ${alpha})`;
+    ctx.fillRect(0, y, W, 1);
+  }
+
+  // Légère variation de saturation sur les bords (haze polaire)
+  const poleHaze = ctx.createLinearGradient(0, 0, 0, H);
+  poleHaze.addColorStop(0.00, "rgba(30, 80, 100, 0.18)");
+  poleHaze.addColorStop(0.15, "rgba(30, 80, 100, 0.00)");
+  poleHaze.addColorStop(0.85, "rgba(30, 80, 100, 0.00)");
+  poleHaze.addColorStop(1.00, "rgba(30, 80, 100, 0.18)");
+  ctx.fillStyle = poleHaze;
+  ctx.fillRect(0, 0, W, H);
+
+  const texture = new THREE.CanvasTexture(canvas);
+
+  const geometry = new THREE.SphereGeometry(pd.size, 64, 64);
+  const material = new THREE.MeshStandardMaterial({
+    map: texture,
+    roughness: 0.85,
+    metalness: 0.0,
+    emissive: new THREE.Color(0x0d3a40),
+    emissiveIntensity: 0.12,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+};
+
+// ---------------------------------------------------------------------------
 // Sphère procédurale (Venus, Uranus, ou fallback)
 // ---------------------------------------------------------------------------
 const createProceduralSphere = (pd: PlanetData): THREE.Mesh => {
@@ -405,12 +505,101 @@ const createProceduralSphere = (pd: PlanetData): THREE.Mesh => {
 };
 
 // ---------------------------------------------------------------------------
-// Soleil procédural (fallback)
+// Soleil procédural animé
 // ---------------------------------------------------------------------------
-const createProceduralSun = (): THREE.Mesh => {
-  const geometry = new THREE.SphereGeometry(2.5, 64, 64);
-  const material = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
-  return new THREE.Mesh(geometry, material);
+const createProceduralSun = (): THREE.Object3D => {
+  const group = new THREE.Group();
+
+  // Corps principal — shader animé granulation solaire
+  const sunMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      varying vec3 vNormal;
+      void main() {
+        vUv = uv;
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float time;
+      varying vec2 vUv; varying vec3 vNormal;
+
+      float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float noise(vec2 p) {
+        vec2 i = floor(p); vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1,0)), f.x),
+                   mix(hash(i + vec2(0,1)), hash(i + vec2(1,1)), f.x), f.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0; float a = 0.5;
+        for (int i = 0; i < 5; i++) { v += a * noise(p); p *= 2.1; a *= 0.5; }
+        return v;
+      }
+
+      void main() {
+        vec2 uv = vUv * 3.0;
+        float t = time * 0.08;
+        float n = fbm(uv + vec2(t, t * 0.7));
+        float n2 = fbm(uv * 1.8 - vec2(t * 0.5, t));
+
+        // Couleurs : jaune vif → orange → rouge profond
+        vec3 col1 = vec3(1.0,  0.95, 0.2);  // jaune
+        vec3 col2 = vec3(1.0,  0.45, 0.05); // orange
+        vec3 col3 = vec3(0.7,  0.05, 0.0);  // rouge sombre
+
+        float blend = n * 0.6 + n2 * 0.4;
+        vec3 color = mix(col1, col2, smoothstep(0.3, 0.65, blend));
+        color = mix(color, col3, smoothstep(0.55, 0.85, blend));
+
+        // Légère variation de luminosité aux bords (limb darkening)
+        float limb = dot(vNormal, vec3(0.0, 0.0, 1.0));
+        color *= 0.75 + 0.25 * limb;
+
+        gl_FragColor = vec4(color, 1.0);
+      }
+    `,
+  });
+
+  const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(2.5, 64, 64), sunMat);
+  group.add(sunMesh);
+
+  // Corona externe animée
+  const coronaMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } },
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float time;
+      varying vec3 vNormal;
+      void main() {
+        float rim = 1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0));
+        float pulse = 0.85 + 0.15 * sin(time * 1.2);
+        float alpha = pow(rim, 2.5) * 0.55 * pulse;
+        vec3 color = mix(vec3(1.0, 0.6, 0.1), vec3(1.0, 0.2, 0.0), pow(rim, 1.5));
+        gl_FragColor = vec4(color, alpha);
+      }
+    `,
+    transparent: true,
+    side: THREE.FrontSide,
+    depthWrite: false,
+  });
+
+  const coronaMesh = new THREE.Mesh(new THREE.SphereGeometry(2.85, 64, 64), coronaMat);
+  group.add(coronaMesh);
+
+  // Anime les uniforms dans la boucle principale via userData
+  group.userData.sunMat = sunMat;
+  group.userData.coronaMat = coronaMat;
+
+  return group;
 };
 
 // ---------------------------------------------------------------------------
@@ -418,9 +607,11 @@ const createProceduralSun = (): THREE.Mesh => {
 // ---------------------------------------------------------------------------
 const buildAtmosphere = (pd: PlanetData): THREE.Group => {
   const group = new THREE.Group();
+  const s = pd.atmosphereScale ?? 1.0;
+  if (s <= 0) return group;
 
   const atmoMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(pd.size * 1.1, 48, 48),
+    new THREE.SphereGeometry(pd.size * (1.0 + 0.10 * s), 48, 48),
     new THREE.MeshPhongMaterial({
       color: pd.atmosphereColor,
       transparent: true,
@@ -432,7 +623,7 @@ const buildAtmosphere = (pd: PlanetData): THREE.Group => {
   group.add(atmoMesh);
 
   const hazeMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(pd.size * 1.15, 48, 48),
+    new THREE.SphereGeometry(pd.size * (1.0 + 0.15 * s), 48, 48),
     new THREE.MeshPhongMaterial({
       color: pd.atmosphereColor,
       transparent: true,
@@ -443,12 +634,16 @@ const buildAtmosphere = (pd: PlanetData): THREE.Group => {
   );
   group.add(hazeMesh);
 
+  // spread contrôle la largeur du halo : 0.7 = large (défaut), réduit avec atmosphereScale
+  const spread = 0.25 + 0.45 * s;
+
   const glowMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(pd.size * 1.2, 48, 48),
+    new THREE.SphereGeometry(pd.size * (1.0 + 0.20 * s), 48, 48),
     new THREE.ShaderMaterial({
       uniforms: {
         color: { value: new THREE.Color(pd.atmosphereColor) },
         time: { value: 0 },
+        spread: { value: spread },
       },
       vertexShader: `
         varying vec3 vNormal;
@@ -460,10 +655,11 @@ const buildAtmosphere = (pd: PlanetData): THREE.Group => {
         }
       `,
       fragmentShader: `
-        uniform vec3 color; uniform float time;
+        uniform vec3 color; uniform float time; uniform float spread;
         varying vec3 vNormal; varying vec3 vPosition;
         void main() {
-          float intensity = pow(0.7 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+          float d = spread - dot(vNormal, vec3(0.0, 0.0, 1.0));
+          float intensity = d > 0.0 ? pow(d, 2.0) : 0.0;
           intensity += sin(vPosition.y * 10.0 + time) * 0.08;
           gl_FragColor = vec4(color, intensity * 0.28);
         }
@@ -616,9 +812,13 @@ const animate = (): void => {
 
   controls.update();
 
-  if (sun) sun.rotation.y += 0.004;
-
   const time = Date.now() * 0.001;
+
+  if (sun) {
+    sun.rotation.y += 0.004;
+    if (sun.userData.sunMat) sun.userData.sunMat.uniforms.time.value = time;
+    if (sun.userData.coronaMat) sun.userData.coronaMat.uniforms.time.value = time;
+  }
 
   planetMeshes.forEach((mesh, i) => {
     const pd = planetsData[i];
@@ -656,6 +856,7 @@ const animate = (): void => {
   } else {
     renderer.render(scene, camera);
   }
+  labelRenderer?.render(scene, camera);
 
 };
 
@@ -667,6 +868,7 @@ const onWindowResize = (): void => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   composer?.setSize(window.innerWidth, window.innerHeight);
+  labelRenderer?.setSize(window.innerWidth, window.innerHeight);
   isMobile = detectMobile();
 };
 
@@ -719,34 +921,65 @@ const setupEventListeners = (): void => {
 // Animation caméra
 // ---------------------------------------------------------------------------
 const zoomToPlanet = (mesh: THREE.Object3D): void => {
-  const start = camera.position.clone();
-  const target = mesh.position.clone().add(new THREE.Vector3(0, mesh.userData.planetId === "jupiter" || mesh.userData.planetId === "saturn" ? 4 : 2, 8));
+  const startCamPos = camera.position.clone();
+  const startTarget = controls.target.clone();
   const startTime = Date.now();
   const duration = 1800;
+  const isLarge = mesh.userData.planetId === "jupiter" || mesh.userData.planetId === "saturn";
+  const dist = isLarge ? 10 : 7;
+  const elevY = isLarge ? 3 : 2;
+
+  controls.enabled = false;
 
   const tick = (): void => {
     const p = Math.min((Date.now() - startTime) / duration, 1);
     const ease = 1 - Math.pow(1 - p, 3);
-    camera.position.lerpVectors(start, target, ease);
-    camera.lookAt(mesh.position);
-    if (p < 1) requestAnimationFrame(tick);
+
+    // Position courante de la planète (elle continue d'orbiter)
+    const planetPos = mesh.position.clone();
+    const radial = new THREE.Vector3(planetPos.x, 0, planetPos.z).normalize();
+    const targetCamPos = planetPos.clone()
+      .addScaledVector(radial, dist)
+      .add(new THREE.Vector3(0, elevY, 0));
+
+    // On interpole camera.position ET controls.target en parallèle
+    // → quand les controls reprennent, leur état interne est déjà cohérent, pas de saccade
+    camera.position.lerpVectors(startCamPos, targetCamPos, ease);
+    controls.target.lerpVectors(startTarget, planetPos, ease);
+    camera.lookAt(controls.target);
+
+    if (p < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      controls.enabled = true;
+      controls.update();
+    }
   };
   tick();
 };
 
 const animateCameraReturn = (): void => {
-  const start = camera.position.clone();
-  const target = new THREE.Vector3(0, 12, 55);
+  const startCamPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const targetCamPos = new THREE.Vector3(0, 12, 55);
+  const targetLookAt = new THREE.Vector3(0, 0, 0);
   const startTime = Date.now();
   const duration = 1500;
+
+  controls.enabled = false;
 
   const tick = (): void => {
     const p = Math.min((Date.now() - startTime) / duration, 1);
     const ease = 1 - Math.pow(1 - p, 3);
-    camera.position.lerpVectors(start, target, ease);
-    camera.lookAt(new THREE.Vector3(0, 0, 0));
-    if (p < 1) requestAnimationFrame(tick);
-    else { controls.target.set(0, 0, 0); controls.update(); }
+    camera.position.lerpVectors(startCamPos, targetCamPos, ease);
+    controls.target.lerpVectors(startTarget, targetLookAt, ease);
+    camera.lookAt(controls.target);
+    if (p < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      controls.enabled = true;
+      controls.update();
+    }
   };
   tick();
 };
@@ -792,6 +1025,7 @@ onUnmounted(() => {
     else mesh.material?.dispose();
   });
   renderer?.dispose();
+  labelRenderer?.domElement.remove();
   document.body.style.cursor = "auto";
 });
 </script>

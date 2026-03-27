@@ -20,9 +20,11 @@ let renderer: THREE.WebGLRenderer;
 
 onMounted(() => {
   const w = props.containerSize ?? 100;
+  const targetSize = props.size ?? 2;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-  camera.position.z = 5;
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+  // Distance calibrée pour que la planète remplisse ~70% du canvas quelle que soit sa taille
+  camera.position.z = targetSize * 1.8;
 
   renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
   renderer.setSize(w, w);
@@ -46,14 +48,20 @@ onMounted(() => {
     const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
     const loader = new GLTFLoader();
     loader.load(
-      `${baseUrl}/models/${props.modelName}`,
+      `${baseUrl}/${props.modelName}`,
       (gltf) => {
         const model = gltf.scene;
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
-        const scale = (props.size ?? 2) / Math.max(size.x, size.y, size.z);
+
+        // Les anneaux (Saturn) sont dans le plan XZ et n'influencent pas Y.
+        // Y correspond donc toujours au corps de la planète.
+        const refDim = size.y;
+        const scale = targetSize / refDim;
         model.scale.setScalar(scale);
-        model.position.sub(box.getCenter(new THREE.Vector3()).multiplyScalar(scale));
+        // Ne corriger que Y : les anneaux de Saturne décalent le centre X/Z
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.set(0, -center.y * scale, 0);
         scene.add(model);
         animate(model);
       },
@@ -72,8 +80,9 @@ onMounted(() => {
   }
 
   function createSphere(): THREE.Mesh {
+    // Rayon = targetSize/2 pour que le diamètre soit identique aux GLBs scalés à targetSize
     return new THREE.Mesh(
-      new THREE.SphereGeometry(props.size ?? 2, 32, 32),
+      new THREE.SphereGeometry(targetSize / 2, 32, 32),
       new THREE.MeshStandardMaterial({ color: props.sphereColor ?? 0xaaaaaa, roughness: 0.7, metalness: 0.1 })
     );
   }

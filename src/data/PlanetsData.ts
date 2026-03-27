@@ -29,6 +29,7 @@ export interface PlanetData {
   orbitSpeed: number;       // rad/s (Kepler sur les distances affichées)
   rotationSpeed: number;    // rad/frame
   atmosphereColor: number;
+  atmosphereScale?: number;  // multiplicateur taille atmosphère (défaut 1.0)
   initialAngle: number;
   info: PlanetInfo;
 }
@@ -61,13 +62,14 @@ const planetsData: PlanetData[] = [
   {
     id: "venus",
     name: "Vénus",
-    modelName: null,         // sphère procédurale — remplacer par venus.glb quand disponible
+    modelName: "venus.glb",
     sphereColor: 0xe8c07f,
     size: 0.58,
     orbitRadius: 7.0,
     orbitSpeed: 0.0270,   // 0.5 / 7.0^1.5
     rotationSpeed: -0.0001, // rétrograde
     atmosphereColor: 0xf5d088,
+    atmosphereScale: 0.2,
     initialAngle: Math.PI * 1.1,
     info: {
       type: "Planète tellurique",
@@ -182,7 +184,7 @@ const planetsData: PlanetData[] = [
   {
     id: "uranus",
     name: "Uranus",
-    modelName: null,          // sphère procédurale — remplacer par uranus.glb quand disponible
+    modelName: null,
     sphereColor: 0x7af0f0,
     size: 0.90,
     orbitRadius: 30.0,
