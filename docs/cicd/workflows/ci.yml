@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  # -------------------------------------------------------------------
+  # Job 1 : Vérifications qualité
+  # Lance le lint, le typecheck et les tests
+  # -------------------------------------------------------------------
+  quality:
+    name: Quality checks
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Clone le dépôt dans l'environnement CI
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Configure Node.js et active le cache npm
+      #    Le cache est basé sur le hash de package-lock.json
+      #    Si les dépendances n'ont pas changé, node_modules est restauré (~10x plus rapide)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 3. Installe les dépendances de façon stricte et reproductible
+      #    npm ci est plus rapide que npm install en CI car il ne résout pas les versions
+      - name: Install dependencies
+        run: npm ci
+
+      # 4. Lint : vérifie les erreurs de syntaxe et les conventions dans src/
+      - name: Lint
+        run: npm run lint
+
+      # 5. TypeCheck : vérifie les types TypeScript sans compiler
+      #    Vite ne vérifie pas les types au build — cette étape est indispensable
+      - name: TypeCheck
+        run: npm run typecheck
+
+      # 6. Tests : exécute tous les fichiers *.test.ts / *.spec.ts une seule fois
+      - name: Tests
+        run: npm run test
+
+  # -------------------------------------------------------------------
+  # Job 2 : Build de production
+  # Ne démarre que si le job quality a réussi
+  # -------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: quality  # dépend du job quality — s'arrête si quality échoue
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Build Vite — produit le dossier dist/
+      - name: Build
+        run: npm run build
+
+      # Sauvegarde dist/ comme artefact GitHub Actions
+      # Le workflow deploy.yml le téléchargera pour éviter de rebuilder
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1  # conservé 1 jour, suffisant pour le déploiement

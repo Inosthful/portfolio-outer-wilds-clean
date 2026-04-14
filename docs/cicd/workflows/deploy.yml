@@ -1,0 +1,48 @@
+name: Deploy
+
+on:
+  # Se déclenche après le workflow CI, uniquement sur main
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+
+jobs:
+  # -------------------------------------------------------------------
+  # Job : Déploiement sur GitHub Pages
+  # Ne se lance que si la CI a réussi
+  # -------------------------------------------------------------------
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+
+    # Condition explicite : on ne déploie que si la CI est verte
+    # (workflow_run peut se déclencher même en cas d'échec)
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    # Permission d'écrire sur les GitHub Pages
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Télécharge le dist/ produit par la CI
+      # On réutilise l'artefact plutôt que de rebuilder :
+      # garantit que ce qui est déployé = ce qui a été testé
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      # Pousse dist/ sur la branche gh-pages
+      # GitHub Pages sert automatiquement cette branche
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
