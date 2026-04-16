@@ -53,7 +53,7 @@ defineProps({
   showTutorial: { type: Boolean, default: false },
   showPerformanceMonitor: { type: Boolean, default: false },
 });
-//
+
 
 
 defineEmits(["open-tutorial", "open-performance-monitor"]);
